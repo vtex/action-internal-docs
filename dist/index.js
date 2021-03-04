@@ -35,10 +35,14 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core_1 = __nccwpck_require__(2186);
 const github = __importStar(__nccwpck_require__(5438));
 const fs = __importStar(__nccwpck_require__(5630));
+const crypto_1 = __importDefault(__nccwpck_require__(6417));
 const octokit_1 = __nccwpck_require__(3258);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
@@ -51,7 +55,13 @@ function run() {
             const owner = 'vtex';
             const repo = 'internal-documentation-portal';
             const defaultBranch = 'main';
-            const branchToPush = `docs-${github.context.sha}`;
+            const current_date = new Date().valueOf().toString();
+            const random = Math.random().toString();
+            const hash = crypto_1.default
+                .createHash('sha1')
+                .update(current_date + random)
+                .digest('hex');
+            const branchToPush = `docs-${hash}`;
             const currentCommit = yield octokit_1.getCurrentCommit(client, {
                 owner,
                 repo,
@@ -12233,6 +12243,14 @@ module.exports = require("buffer");;
 
 "use strict";
 module.exports = require("constants");;
+
+/***/ }),
+
+/***/ 6417:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("crypto");;
 
 /***/ }),
 

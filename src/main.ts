@@ -1,6 +1,8 @@
 import {setFailed, getInput} from '@actions/core'
 import * as github from '@actions/github'
 import * as fs from 'fs-extra'
+import crypto from 'crypto'
+
 import {
   createBlobForFile,
   createBranch,
@@ -20,7 +22,16 @@ async function run(): Promise<void> {
     const owner = 'vtex'
     const repo = 'internal-documentation-portal'
     const defaultBranch = 'main'
-    const branchToPush = `docs-${github.context.sha}`
+
+    const current_date = new Date().valueOf().toString()
+    const random = Math.random().toString()
+
+    const hash = crypto
+      .createHash('sha1')
+      .update(current_date + random)
+      .digest('hex')
+
+    const branchToPush = `docs-${hash}`
 
     const currentCommit = await getCurrentCommit(client, {
       owner,

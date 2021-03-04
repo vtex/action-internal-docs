@@ -11,7 +11,7 @@ async function run(): Promise<void> {
     const ctx = github.context
     const fileList = fs.readdirSync('./docs')
     const files = fileList.map(file => {
-      return {name: file, content: fs.readFileSync(`./docs/${file}`)}
+      return {name: file, content: fs.readFileSync(`./docs/${file}`).toString()}
     })
     // eslint-disable-next-line no-console
     console.log(JSON.stringify(files))

@@ -5,7 +5,7 @@ async function run(): Promise<void> {
   try {
     const x = github.context.payload
     // eslint-disable-next-line no-console
-    console.log(x)
+    console.log(JSON.stringify(x))
     debug(x || '')
   } catch (error) {
     setFailed(error.message)

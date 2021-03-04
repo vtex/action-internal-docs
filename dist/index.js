@@ -51,6 +51,7 @@ function run() {
             const owner = 'vtex';
             const repo = 'internal-documentation-portal';
             const defaultBranch = 'main';
+            const branchToPush = `docs-${github.context.sha}`;
             const currentCommit = yield octokit_1.getCurrentCommit(client, {
                 owner,
                 repo,
@@ -71,7 +72,7 @@ function run() {
             yield octokit_1.createBranch(client, {
                 owner,
                 repo,
-                branch: 'docs',
+                branch: branchToPush,
                 parentSha: currentCommit.commitSha
             });
             const newCommit = yield octokit_1.createNewCommit(client, {
@@ -91,7 +92,7 @@ function run() {
                 owner,
                 repo,
                 title: `Docs incoming`,
-                head: 'docs',
+                head: branchToPush,
                 base: defaultBranch,
                 body: 'docs incoming'
             });

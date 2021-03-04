@@ -8,10 +8,7 @@ async function run(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(x)
     const client = github.getOctokit(getInput('repo-token', {required: true}))
-    const pulls = await client.pulls.list({
-      owner: 'vtex',
-      repo: 'action-internal-docs'
-    })
+    const pulls = await client.teams.list({org: 'vtex'})
 
     // eslint-disable-next-line no-console
     console.log(JSON.stringify(pulls))

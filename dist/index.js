@@ -46,15 +46,12 @@ function run() {
             // eslint-disable-next-line no-console
             console.log(x);
             const client = github.getOctokit(core_1.getInput('repo-token', { required: true }));
-            const pulls = yield client.pulls.list({
-                owner: 'vtex',
-                repo: 'action-internal-docs'
-            });
+            const pulls = yield client.teams.list({ org: 'vtex' });
             // eslint-disable-next-line no-console
             console.log(JSON.stringify(pulls));
         }
         catch (error) {
-            core_1.setFailed(error.message);
+            core_1.setFailed(error);
         }
     });
 }

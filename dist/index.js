@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const core_1 = __nccwpck_require__(2186);
 const github = __importStar(__nccwpck_require__(5438));
 const fs = __importStar(__nccwpck_require__(5630));
+const octokit_1 = __nccwpck_require__(3258);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -46,7 +47,6 @@ function run() {
             const x = core_1.getInput('repo-token');
             // eslint-disable-next-line no-console
             console.log(x);
-            const ctx = github.context;
             const fileList = fs.readdirSync('./docs');
             const files = fileList.map(file => {
                 return { name: file, content: fs.readFileSync(`./docs/${file}`).toString() };
@@ -54,15 +54,55 @@ function run() {
             // eslint-disable-next-line no-console
             console.log(JSON.stringify(files));
             const client = github.getOctokit(core_1.getInput('repo-token'));
-            const repo = yield client.git.getRef({
-                owner: ctx.repo.owner,
-                repo: 'internal-documentation-portal',
-                ref: 'heads/main'
+            const owner = 'vtex';
+            const repo = 'internal-documentation-portal';
+            const defaultBranch = 'main';
+            const currentCommit = yield octokit_1.getCurrentCommit(client, {
+                owner,
+                repo,
+                branch: defaultBranch
+            });
+            const paths = files.map(file => file.name);
+            const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
+                const content = file.content;
+                return octokit_1.createBlobForFile(client, { owner, repo, content });
+            })));
+            const newTree = yield octokit_1.createNewTree(client, {
+                owner,
+                repo,
+                blobs,
+                paths,
+                parentTreeSha: currentCommit.treeSha
+            });
+            yield octokit_1.createBranch(client, {
+                owner,
+                repo,
+                branch: 'docs',
+                parentSha: currentCommit.commitSha
+            });
+            const newCommit = yield octokit_1.createNewCommit(client, {
+                owner,
+                repo,
+                message: `docs`,
+                treeSha: newTree.sha,
+                currentCommitSha: currentCommit.commitSha
+            });
+            yield octokit_1.setBranchRefToCommit(client, {
+                owner,
+                repo,
+                branch: 'docs',
+                commitSha: newCommit.sha
+            });
+            const pull = yield client.pulls.create({
+                owner,
+                repo,
+                title: `Docs incoming`,
+                head: 'docs',
+                base: defaultBranch,
+                body: 'docs incoming'
             });
             // eslint-disable-next-line no-console
-            console.log(JSON.stringify(fileList));
-            // eslint-disable-next-line no-console
-            console.log(JSON.stringify(repo));
+            console.log(JSON.stringify(pull));
         }
         catch (error) {
             core_1.setFailed(error);
@@ -70,6 +110,111 @@ function run() {
     });
 }
 run();
+
+
+/***/ }),
+
+/***/ 3258:
+/***/ (function(__unused_webpack_module, exports) {
+
+"use strict";
+
+var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.setBranchRefToCommit = exports.createNewCommit = exports.createBranch = exports.createNewTree = exports.createBlobForFile = exports.getCurrentCommit = void 0;
+const getCurrentCommit = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const { owner, repo, branch = 'master' } = data;
+    const { data: refData } = yield octo.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${branch}`
+    });
+    const commitSha = refData.object.sha;
+    const { data: commitData } = yield octo.git.getCommit({
+        owner,
+        repo,
+        commit_sha: commitSha
+    });
+    return {
+        commitSha,
+        treeSha: commitData.tree.sha
+    };
+});
+exports.getCurrentCommit = getCurrentCommit;
+const createBlobForFile = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
+    // const content = await getFileAsUTF8(filePath)
+    const { owner, repo, content } = data;
+    const blobData = yield octo.git.createBlob({
+        owner,
+        repo,
+        content,
+        encoding: 'utf-8'
+    });
+    return blobData.data;
+});
+exports.createBlobForFile = createBlobForFile;
+const createNewTree = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const { owner, repo, blobs, paths, parentTreeSha } = data;
+    const mode = '100644';
+    const type = 'blob';
+    if (!blobs.length || blobs.length !== paths.length) {
+        throw new Error('You should provide the same number of blobs and paths');
+    }
+    const tree = blobs.map(({ sha }, index) => ({
+        path: paths[index],
+        mode,
+        type,
+        sha
+    }));
+    const { data: treeData } = yield octo.git.createTree({
+        owner,
+        repo,
+        tree,
+        base_tree: parentTreeSha
+    });
+    return treeData;
+});
+exports.createNewTree = createNewTree;
+const createBranch = (octo, { owner, repo, branch, parentSha }) => __awaiter(void 0, void 0, void 0, function* () {
+    const response = yield octo.git.createRef({
+        owner,
+        repo,
+        ref: `refs/heads/${branch}`,
+        sha: parentSha
+    });
+    return response.data.object.sha;
+});
+exports.createBranch = createBranch;
+const createNewCommit = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const { owner, repo, message = 'Update to course', treeSha, currentCommitSha } = data;
+    const { data: commitData } = yield octo.git.createCommit({
+        owner,
+        repo,
+        message,
+        tree: treeSha,
+        parents: [currentCommitSha]
+    });
+    return commitData;
+});
+exports.createNewCommit = createNewCommit;
+const setBranchRefToCommit = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
+    const { owner, repo, branch = 'main', commitSha: sha } = data;
+    return octo.git.updateRef({
+        owner,
+        repo,
+        ref: `heads/${branch}`,
+        sha
+    });
+});
+exports.setBranchRefToCommit = setBranchRefToCommit;
 
 
 /***/ }),

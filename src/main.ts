@@ -40,7 +40,9 @@ async function run(): Promise<void> {
       branch: defaultBranch
     })
 
-    const paths = files.map(file => `docs/${context.repo}/${file.name}`)
+    const paths = files.map(
+      file => `docs/${context.repo.owner}-${context.repo.repo}/${file.name}`
+    )
 
     const blobs = await Promise.all(
       files.map(async file => {

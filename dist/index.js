@@ -68,7 +68,7 @@ function run() {
                 repo,
                 branch: defaultBranch
             });
-            const paths = files.map(file => `docs/${utils_1.context.repo}/${file.name}`);
+            const paths = files.map(file => `docs/${utils_1.context.repo.owner}-${utils_1.context.repo.repo}/${file.name}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
                 const content = file.content;
                 return octokit_1.createBlobForFile(client, { owner, repo, content });

@@ -13,7 +13,7 @@ async function run(): Promise<void> {
     const files = fileList.map(file => {
       return {name: file, content: fs.readFileSync(file)}
     })
-
+    // eslint-disable-next-line no-console
     console.log(JSON.stringify(files))
     const client = github.getOctokit(getInput('repo-token'))
 

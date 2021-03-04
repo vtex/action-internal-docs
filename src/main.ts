@@ -12,13 +12,11 @@ async function run(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(JSON.stringify(ctx.repo))
     // eslint-disable-next-line no-console
-    console.log(JSON.stringify(ctx.ref))
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify(ctx.runNumber))
+    console.log(JSON.stringify(ctx.eventName))
     const ref = await client.git.getRef({
       owner: ctx.repo.owner,
       repo: ctx.repo.repo,
-      ref: ctx.ref
+      ref: 'heads/main'
     })
 
     // eslint-disable-next-line no-console

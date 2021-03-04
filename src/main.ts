@@ -9,8 +9,12 @@ async function run(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(x)
     const ctx = github.context
-    const fileList = await fs.readdir('./docs')
+    const fileList = fs.readdirSync('./docs')
+    const files = fileList.map(file => {
+      return {name: file, content: fs.readFileSync(file)}
+    })
 
+    console.log(JSON.stringify(files))
     const client = github.getOctokit(getInput('repo-token'))
 
     const repo = await client.git.getRef({

@@ -3,7 +3,7 @@ import * as github from '@actions/github'
 
 async function run(): Promise<void> {
   try {
-    const x = github.context.payload.action
+    const x = github.context.payload
     // eslint-disable-next-line no-console
     console.log(x)
     debug(x || '')

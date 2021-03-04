@@ -16,7 +16,7 @@ async function run(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(JSON.stringify(pulls))
   } catch (error) {
-    setFailed(error.message)
+    setFailed(error)
   }
 }
 

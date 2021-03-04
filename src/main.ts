@@ -9,7 +9,7 @@ async function run(): Promise<void> {
     // eslint-disable-next-line no-console
     console.log(x)
     const ctx = github.context
-    const fileList = await fs.readdir('/docs')
+    const fileList = await fs.readdir('./docs')
 
     const client = github.getOctokit(getInput('repo-token'))
 

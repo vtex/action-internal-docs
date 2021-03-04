@@ -11,6 +11,10 @@ async function run(): Promise<void> {
     const client = github.getOctokit(getInput('repo-token'))
     // eslint-disable-next-line no-console
     console.log(JSON.stringify(ctx.repo))
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(ctx.ref))
+    // eslint-disable-next-line no-console
+    console.log(JSON.stringify(ctx.runNumber))
     const ref = await client.git.getRef({
       owner: ctx.repo.owner,
       repo: ctx.repo.repo,

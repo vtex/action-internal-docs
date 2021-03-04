@@ -52,6 +52,7 @@ function run() {
             core.debug(new Date().toTimeString());
             const data = (yield axios_1.default.get('https://example.org/')).data;
             core.debug(data);
+            console.log(data);
             core.setOutput('time', new Date().toTimeString());
         }
         catch (error) {

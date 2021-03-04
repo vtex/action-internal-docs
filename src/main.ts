@@ -12,6 +12,7 @@ async function run(): Promise<void> {
     core.debug(new Date().toTimeString())
     const data = (await axios.get('https://example.org/')).data
     core.debug(data)
+    console.log(data)
     core.setOutput('time', new Date().toTimeString())
   } catch (error) {
     core.setFailed(error.message)

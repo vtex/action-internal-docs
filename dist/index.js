@@ -41,8 +41,9 @@ const github = __importStar(__nccwpck_require__(5438));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const x = github.context.payload.action;
-            core_1.debug(x || '');
+            const x = github.context.payload;
+            // eslint-disable-next-line no-console
+            console.log(JSON.stringify(x));
         }
         catch (error) {
             core_1.setFailed(error.message);

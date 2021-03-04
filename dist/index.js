@@ -46,11 +46,15 @@ function run() {
             // eslint-disable-next-line no-console
             console.log(x);
             const ctx = github.context;
-            const client = github.getOctokit(core_1.getInput('repo-token', { required: true }));
+            const client = github.getOctokit(core_1.getInput('repo-token'));
+            // eslint-disable-next-line no-console
+            console.log(JSON.stringify(ctx.repo));
+            // eslint-disable-next-line no-console
+            console.log(JSON.stringify(ctx.eventName));
             const ref = yield client.git.getRef({
                 owner: ctx.repo.owner,
                 repo: ctx.repo.repo,
-                ref: ctx.ref
+                ref: 'heads/main'
             });
             // eslint-disable-next-line no-console
             console.log(JSON.stringify(ref));

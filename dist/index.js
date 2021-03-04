@@ -46,7 +46,10 @@ function run() {
             // eslint-disable-next-line no-console
             console.log(x);
             const client = github.getOctokit(core_1.getInput('repo-token', { required: true }));
-            const pulls = yield client.pulls.list();
+            const pulls = yield client.pulls.list({
+                owner: 'vtex',
+                repo: 'action-internal-docs'
+            });
             // eslint-disable-next-line no-console
             console.log(JSON.stringify(pulls));
         }

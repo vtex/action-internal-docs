@@ -42,6 +42,9 @@ function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             // const x = github.context.payload
+            const x = core_1.getInput('repo-token');
+            // eslint-disable-next-line no-console
+            console.log(x);
             const client = github.getOctokit(core_1.getInput('repo-token', { required: true }));
             const pulls = yield client.pulls.list();
             // eslint-disable-next-line no-console

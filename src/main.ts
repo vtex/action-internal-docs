@@ -75,7 +75,7 @@ async function run(): Promise<void> {
     await setBranchRefToCommit(client, {
       owner,
       repo,
-      branch: 'docs',
+      branch: branchToPush,
       commitSha: newCommit.sha
     })
 

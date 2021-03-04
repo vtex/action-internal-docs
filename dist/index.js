@@ -95,7 +95,7 @@ function run() {
             yield octokit_1.setBranchRefToCommit(client, {
                 owner,
                 repo,
-                branch: 'docs',
+                branch: branchToPush,
                 commitSha: newCommit.sha
             });
             const pull = yield client.pulls.create({

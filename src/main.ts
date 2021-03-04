@@ -1,4 +1,5 @@
 import * as core from '@actions/core'
+import axios from 'axios'
 import {wait} from './wait'
 
 async function run(): Promise<void> {
@@ -9,7 +10,8 @@ async function run(): Promise<void> {
     core.debug(new Date().toTimeString())
     await wait(parseInt(ms, 10))
     core.debug(new Date().toTimeString())
-
+    const data = (await axios.get('https://example.org/')).data
+    core.debug(data)
     core.setOutput('time', new Date().toTimeString())
   } catch (error) {
     core.setFailed(error.message)

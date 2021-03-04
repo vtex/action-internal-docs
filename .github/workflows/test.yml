@@ -18,4 +18,4 @@ jobs:
           npm run all
       - uses: ./
         with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-token: ${{ secrets.VTEX_GITHUB_BOT_TOKEN }}

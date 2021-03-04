@@ -44,6 +44,7 @@ const github = __importStar(__nccwpck_require__(5438));
 const fs = __importStar(__nccwpck_require__(5630));
 const crypto_1 = __importDefault(__nccwpck_require__(6417));
 const octokit_1 = __nccwpck_require__(3258);
+const utils_1 = __nccwpck_require__(3030);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -67,7 +68,7 @@ function run() {
                 repo,
                 branch: defaultBranch
             });
-            const paths = files.map(file => `docs/${file.name}`);
+            const paths = files.map(file => `docs/${utils_1.context.repo}/${file.name}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
                 const content = file.content;
                 return octokit_1.createBlobForFile(client, { owner, repo, content });

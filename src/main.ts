@@ -11,6 +11,7 @@ import {
   getCurrentCommit,
   setBranchRefToCommit
 } from './octokit'
+import {context} from '@actions/github/lib/utils'
 
 async function run(): Promise<void> {
   try {
@@ -39,7 +40,7 @@ async function run(): Promise<void> {
       branch: defaultBranch
     })
 
-    const paths = files.map(file => `docs/${file.name}`)
+    const paths = files.map(file => `docs/${context.repo}/${file.name}`)
 
     const blobs = await Promise.all(
       files.map(async file => {

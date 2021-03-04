@@ -45,10 +45,15 @@ function run() {
             const x = core_1.getInput('repo-token');
             // eslint-disable-next-line no-console
             console.log(x);
+            const ctx = github.context;
             const client = github.getOctokit(core_1.getInput('repo-token', { required: true }));
-            const pulls = yield client.teams.list({ org: 'vtex' });
+            const ref = yield client.git.getRef({
+                owner: ctx.repo.owner,
+                repo: ctx.repo.repo,
+                ref: ctx.ref
+            });
             // eslint-disable-next-line no-console
-            console.log(JSON.stringify(pulls));
+            console.log(JSON.stringify(ref));
         }
         catch (error) {
             core_1.setFailed(error);

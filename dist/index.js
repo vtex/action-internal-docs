@@ -43,16 +43,10 @@ const octokit_1 = __nccwpck_require__(3258);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            // const x = github.context.payload
-            const x = core_1.getInput('repo-token');
-            // eslint-disable-next-line no-console
-            console.log(x);
             const fileList = fs.readdirSync('./docs');
             const files = fileList.map(file => {
                 return { name: file, content: fs.readFileSync(`./docs/${file}`).toString() };
             });
-            // eslint-disable-next-line no-console
-            console.log(JSON.stringify(files));
             const client = github.getOctokit(core_1.getInput('repo-token'));
             const owner = 'vtex';
             const repo = 'internal-documentation-portal';
@@ -62,7 +56,7 @@ function run() {
                 repo,
                 branch: defaultBranch
             });
-            const paths = files.map(file => file.name);
+            const paths = files.map(file => `docs/${file.name}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
                 const content = file.content;
                 return octokit_1.createBlobForFile(client, { owner, repo, content });

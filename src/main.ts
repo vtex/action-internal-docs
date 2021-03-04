@@ -12,17 +12,10 @@ import {
 
 async function run(): Promise<void> {
   try {
-    // const x = github.context.payload
-    const x = getInput('repo-token')
-    // eslint-disable-next-line no-console
-    console.log(x)
-
     const fileList = fs.readdirSync('./docs')
     const files = fileList.map(file => {
       return {name: file, content: fs.readFileSync(`./docs/${file}`).toString()}
     })
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify(files))
     const client = github.getOctokit(getInput('repo-token'))
     const owner = 'vtex'
     const repo = 'internal-documentation-portal'
@@ -34,7 +27,7 @@ async function run(): Promise<void> {
       branch: defaultBranch
     })
 
-    const paths = files.map(file => file.name)
+    const paths = files.map(file => `docs/${file.name}`)
 
     const blobs = await Promise.all(
       files.map(async file => {

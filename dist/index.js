@@ -53,6 +53,7 @@ function run() {
                 return { name: file, content: fs.readFileSync(`./docs/${file}`).toString() };
             });
             const client = github.getOctokit(core_1.getInput('repo-token'));
+            const product = core_1.getInput('docs-product', { required: true });
             const owner = 'vtex';
             const repo = 'internal-documentation-portal';
             const defaultBranch = 'main';
@@ -68,7 +69,7 @@ function run() {
                 repo,
                 branch: defaultBranch
             });
-            const paths = files.map(file => `docs/${utils_1.context.repo.owner}-${utils_1.context.repo.repo}/${file.name}`);
+            const paths = files.map(file => `docs/${product}/${utils_1.context.repo.owner}-${utils_1.context.repo.repo}/${file.name}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
                 const content = file.content;
                 return octokit_1.createBlobForFile(client, { owner, repo, content });
@@ -99,7 +100,7 @@ function run() {
                 branch: branchToPush,
                 commitSha: newCommit.sha
             });
-            const pull = yield client.pulls.create({
+            yield client.pulls.create({
                 owner,
                 repo,
                 title: `Docs incoming`,
@@ -107,8 +108,6 @@ function run() {
                 base: defaultBranch,
                 body: 'docs incoming'
             });
-            // eslint-disable-next-line no-console
-            console.log(JSON.stringify(pull));
         }
         catch (error) {
             core_1.setFailed(error);

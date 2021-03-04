@@ -20,6 +20,8 @@ async function run(): Promise<void> {
       return {name: file, content: fs.readFileSync(`./docs/${file}`).toString()}
     })
     const client = github.getOctokit(getInput('repo-token'))
+    const product = getInput('docs-product', {required: true})
+
     const owner = 'vtex'
     const repo = 'internal-documentation-portal'
     const defaultBranch = 'main'
@@ -41,7 +43,8 @@ async function run(): Promise<void> {
     })
 
     const paths = files.map(
-      file => `docs/${context.repo.owner}-${context.repo.repo}/${file.name}`
+      file =>
+        `docs/${product}/${context.repo.owner}-${context.repo.repo}/${file.name}`
     )
 
     const blobs = await Promise.all(
@@ -82,7 +85,7 @@ async function run(): Promise<void> {
       commitSha: newCommit.sha
     })
 
-    const pull = await client.pulls.create({
+    await client.pulls.create({
       owner,
       repo,
       title: `Docs incoming`,
@@ -90,9 +93,6 @@ async function run(): Promise<void> {
       base: defaultBranch,
       body: 'docs incoming'
     })
-
-    // eslint-disable-next-line no-console
-    console.log(JSON.stringify(pull))
   } catch (error) {
     setFailed(error)
   }

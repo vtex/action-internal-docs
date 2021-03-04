@@ -41,9 +41,11 @@ const github = __importStar(__nccwpck_require__(5438));
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const x = github.context.payload;
+            // const x = github.context.payload
+            const client = github.getOctokit(core_1.getInput('repo-token', { required: true }));
+            const pulls = yield client.pulls.list();
             // eslint-disable-next-line no-console
-            console.log(JSON.stringify(x));
+            console.log(JSON.stringify(pulls));
         }
         catch (error) {
             core_1.setFailed(error.message);

@@ -1,10 +1,10 @@
-import * as core from '@actions/core'
+import {debug, setFailed} from '@actions/core'
 
 async function run(): Promise<void> {
   try {
-    core.debug('s')
+    debug('s')
   } catch (error) {
-    core.setFailed(error.message)
+    setFailed(error.message)
   }
 }
 

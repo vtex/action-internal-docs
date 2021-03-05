@@ -5,6 +5,9 @@ inputs:
   repo-token: # change this
     required: true
     description: 'input description here'
+  docs-product: # change this
+    required: true
+    description: 'input description here'
 runs:
   using: 'node12'
   main: 'dist/index.js'

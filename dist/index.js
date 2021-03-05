@@ -100,14 +100,15 @@ function run() {
                 branch: branchToPush,
                 commitSha: newCommit.sha
             });
-            yield client.pulls.create({
+            const pull = (yield client.pulls.create({
                 owner,
                 repo,
                 title: `Docs incoming`,
                 head: branchToPush,
                 base: defaultBranch,
                 body: 'docs incoming'
-            });
+            })).data;
+            yield octokit_1.mergePullRequest(client, { owner, repo, pullNumber: pull.number });
         }
         catch (error) {
             core_1.setFailed(error);
@@ -134,7 +135,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.setBranchRefToCommit = exports.createNewCommit = exports.createBranch = exports.createNewTree = exports.createBlobForFile = exports.getCurrentCommit = void 0;
+exports.mergePullRequest = exports.setBranchRefToCommit = exports.createNewCommit = exports.createBranch = exports.createNewTree = exports.createBlobForFile = exports.getCurrentCommit = void 0;
 const getCurrentCommit = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
     const { owner, repo, branch = 'master' } = data;
     const { data: refData } = yield octo.git.getRef({
@@ -220,6 +221,15 @@ const setBranchRefToCommit = (octo, data) => __awaiter(void 0, void 0, void 0, f
     });
 });
 exports.setBranchRefToCommit = setBranchRefToCommit;
+const mergePullRequest = (octo, { owner, repo, pullNumber }) => __awaiter(void 0, void 0, void 0, function* () {
+    const response = yield octo.pulls.merge({
+        owner,
+        repo,
+        pull_number: pullNumber
+    });
+    return response.data;
+});
+exports.mergePullRequest = mergePullRequest;
 
 
 /***/ }),

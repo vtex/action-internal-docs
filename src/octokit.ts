@@ -147,3 +147,16 @@ export const setBranchRefToCommit = async (
     sha
   })
 }
+
+export const mergePullRequest = async (
+  octo: any,
+  {owner, repo, pullNumber}: {owner: string; repo: string; pullNumber: number}
+) => {
+  const response = await octo.pulls.merge({
+    owner,
+    repo,
+    pull_number: pullNumber
+  })
+
+  return response.data
+}

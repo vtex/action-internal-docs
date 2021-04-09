@@ -51,7 +51,9 @@ function run() {
             const files = (yield recursive_readdir_1.default('./docs')).map(file => {
                 return {
                     name: file,
-                    content: fs.readFileSync(`${file}`).toString()
+                    content: file.endsWith('.md')
+                        ? fs.readFileSync(`${file}`).toString()
+                        : Buffer.from(fs.readFileSync(`${file}`)).toString('base64')
                 };
             });
             const client = github.getOctokit(core_1.getInput('repo-token'));

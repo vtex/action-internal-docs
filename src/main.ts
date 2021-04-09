@@ -21,7 +21,7 @@ async function run(): Promise<void> {
         name: file,
         content: file.endsWith('.md')
           ? fs.readFileSync(`${file}`).toString()
-          : fs.readFileSync(`${file}`)
+          : Buffer.from(fs.readFileSync(`${file}`)).toString('base64')
       }
     })
 

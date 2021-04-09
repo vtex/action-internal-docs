@@ -113,6 +113,7 @@ function run() {
         }
         catch (error) {
             core_1.setFailed(error);
+            throw error;
         }
     });
 }

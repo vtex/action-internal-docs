@@ -101,6 +101,7 @@ async function run(): Promise<void> {
     await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
   } catch (error) {
     setFailed(error)
+    throw error
   }
 }
 

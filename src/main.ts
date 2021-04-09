@@ -15,6 +15,7 @@ import {
 import {context} from '@actions/github/lib/utils'
 
 async function run(): Promise<void> {
+  console.log('chega aí')
   try {
     // const fileList = fs.readdirSync('./docs')
     const files = fileList.map(file => {

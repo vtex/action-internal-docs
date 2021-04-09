@@ -102,15 +102,15 @@ function run() {
                 branch: branchToPush,
                 commitSha: newCommit.sha
             });
-            yield client.pulls.create({
+            const pull = (yield client.pulls.create({
                 owner,
                 repo,
                 title: `Docs incoming`,
                 head: branchToPush,
                 base: defaultBranch,
                 body: 'docs incoming'
-            });
-            // await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
+            })).data;
+            yield octokit_1.mergePullRequest(client, { owner, repo, pullNumber: pull.number });
         }
         catch (error) {
             core_1.setFailed(error);

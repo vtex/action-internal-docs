@@ -22,10 +22,10 @@ async function run(): Promise<void> {
         content:
           file.endsWith('png') || file.endsWith('jpg')
             ? Buffer.from(
-                fs.readFileSync(`${file}`, {encoding: 'binary'}),
+                fs.readFileSync(file, {encoding: 'binary'}),
                 'binary'
               ).toString('base64')
-            : fs.readFileSync(`${file}`).toString()
+            : fs.readFileSync(file).toString()
       }
     })
 
@@ -33,7 +33,7 @@ async function run(): Promise<void> {
     const product = getInput('docs-product', {required: true})
 
     const owner = 'vtex'
-    const repo = 'internal-documentation-portal'
+    const repo = 'internal-docs'
     const defaultBranch = 'main'
 
     const current_date = new Date().valueOf().toString()

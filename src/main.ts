@@ -19,7 +19,9 @@ async function run(): Promise<void> {
     const files = (await recursive('./docs')).map(file => {
       return {
         name: file,
-        content: fs.readFileSync(`${file}`).toString()
+        content: file.endsWith('.md')
+          ? fs.readFileSync(`${file}`).toString()
+          : fs.readFileSync(`${file}`)
       }
     })
 

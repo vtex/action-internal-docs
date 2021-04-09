@@ -49,7 +49,6 @@ function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const files = (yield recursive_readdir_1.default('./docs')).map(file => {
-                core_1.info(file);
                 return {
                     name: file,
                     content: fs.readFileSync(`${file}`).toString()
@@ -103,15 +102,15 @@ function run() {
                 branch: branchToPush,
                 commitSha: newCommit.sha
             });
-            const pull = (yield client.pulls.create({
+            yield client.pulls.create({
                 owner,
                 repo,
                 title: `Docs incoming`,
                 head: branchToPush,
                 base: defaultBranch,
                 body: 'docs incoming'
-            })).data;
-            yield octokit_1.mergePullRequest(client, { owner, repo, pullNumber: pull.number });
+            });
+            // await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
         }
         catch (error) {
             core_1.setFailed(error);

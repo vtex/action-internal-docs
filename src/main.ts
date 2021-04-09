@@ -1,4 +1,4 @@
-import {setFailed, getInput, info} from '@actions/core'
+import {setFailed, getInput} from '@actions/core'
 import * as github from '@actions/github'
 import * as fs from 'fs-extra'
 import crypto from 'crypto'
@@ -10,14 +10,13 @@ import {
   createNewCommit,
   createNewTree,
   getCurrentCommit,
-  mergePullRequest,
+  // mergePullRequest,
   setBranchRefToCommit
 } from './octokit'
 
 async function run(): Promise<void> {
   try {
     const files = (await recursive('./docs')).map(file => {
-      info(file)
       return {
         name: file,
         content: fs.readFileSync(`${file}`).toString()
@@ -88,18 +87,16 @@ async function run(): Promise<void> {
       commitSha: newCommit.sha
     })
 
-    const pull = (
-      await client.pulls.create({
-        owner,
-        repo,
-        title: `Docs incoming`,
-        head: branchToPush,
-        base: defaultBranch,
-        body: 'docs incoming'
-      })
-    ).data
+    await client.pulls.create({
+      owner,
+      repo,
+      title: `Docs incoming`,
+      head: branchToPush,
+      base: defaultBranch,
+      body: 'docs incoming'
+    })
 
-    await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
+    // await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
   } catch (error) {
     setFailed(error)
     throw error

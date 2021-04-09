@@ -13,7 +13,6 @@ import {
   mergePullRequest,
   setBranchRefToCommit
 } from './octokit'
-import {context} from '@actions/github/lib/utils'
 
 async function run(): Promise<void> {
   try {
@@ -49,14 +48,12 @@ async function run(): Promise<void> {
     })
 
     const paths = files.map(
-      file =>
-        `docs/${product}/${context.repo.owner}-${context.repo.repo}/${file.name}`
+      file => `docs/${product}/${file.name.replace('docs/', '')}`
     )
 
     const blobs = await Promise.all(
       files.map(async file => {
         const content = file.content
-
         return createBlobForFile(client, {owner, repo, content})
       })
     )

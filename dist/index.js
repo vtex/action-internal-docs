@@ -47,6 +47,7 @@ const octokit_1 = __nccwpck_require__(3258);
 const utils_1 = __nccwpck_require__(3030);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
+        core_1.info('chega aí');
         try {
             const fileList = fs.readdirSync('./docs');
             const files = fileList.map(file => {

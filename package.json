@@ -29,9 +29,11 @@
     "@actions/exec": "^1.0.4",
     "@actions/github": "^4.0.0",
     "@actions/http-client": "^1.0.9",
+    "@types/recursive-readdir": "^2.2.0",
     "axios": "^0.21.1",
     "crypto": "^1.0.1",
-    "fs-extra": "^9.1.0"
+    "fs-extra": "^9.1.0",
+    "recursive-readdir": "^2.2.2"
   },
   "devDependencies": {
     "@octokit/rest": "^18.3.2",

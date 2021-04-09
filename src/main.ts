@@ -2,6 +2,7 @@ import {setFailed, getInput, info} from '@actions/core'
 import * as github from '@actions/github'
 import * as fs from 'fs-extra'
 import crypto from 'crypto'
+import recursive from 'recursive-readdir'
 
 import {
   createBlobForFile,
@@ -15,12 +16,15 @@ import {
 import {context} from '@actions/github/lib/utils'
 
 async function run(): Promise<void> {
-  info('chega aí')
   try {
-    const fileList = fs.readdirSync('./docs')
-    const files = fileList.map(file => {
-      return {name: file, content: fs.readFileSync(`./docs/${file}`).toString()}
+    const files = (await recursive('./docs')).map(file => {
+      info(file)
+      return {
+        name: file,
+        content: fs.readFileSync(`${file}`).toString()
+      }
     })
+
     const client = github.getOctokit(getInput('repo-token'))
     const product = getInput('docs-product', {required: true})
 

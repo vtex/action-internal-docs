@@ -32,7 +32,8 @@ export const createBlobForFile = async (
     owner: string
     repo: string
     content: string
-  }
+  },
+  encoding = 'utf-8'
 ) => {
   // const content = await getFileAsUTF8(filePath)
   const {owner, repo, content} = data
@@ -40,7 +41,7 @@ export const createBlobForFile = async (
     owner,
     repo,
     content,
-    encoding: 'utf-8'
+    encoding
   })
 
   return blobData.data

@@ -51,7 +51,9 @@ function run() {
             const files = (yield recursive_readdir_1.default('./docs')).map(file => {
                 return {
                     name: file,
-                    content: fs.readFileSync(`${file}`).toString()
+                    content: file.endsWith('png') || file.endsWith('jpg')
+                        ? Buffer.from(fs.readFileSync(`${file}`, { encoding: 'binary' }), 'binary').toString('base64')
+                        : fs.readFileSync(`${file}`).toString()
                 };
             });
             const client = github.getOctokit(core_1.getInput('repo-token'));
@@ -74,7 +76,12 @@ function run() {
             const paths = files.map(file => `docs/${product}/${file.name.replace('docs/', '')}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
                 const content = file.content;
-                return octokit_1.createBlobForFile(client, { owner, repo, content });
+                if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
+                    return octokit_1.createBlobForFile(client, { owner, repo, content }, 'base64');
+                }
+                else {
+                    return octokit_1.createBlobForFile(client, { owner, repo, content });
+                }
             })));
             const newTree = yield octokit_1.createNewTree(client, {
                 owner,
@@ -160,14 +167,14 @@ const getCurrentCommit = (octo, data) => __awaiter(void 0, void 0, void 0, funct
     };
 });
 exports.getCurrentCommit = getCurrentCommit;
-const createBlobForFile = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
+const createBlobForFile = (octo, data, encoding = 'utf-8') => __awaiter(void 0, void 0, void 0, function* () {
     // const content = await getFileAsUTF8(filePath)
     const { owner, repo, content } = data;
     const blobData = yield octo.git.createBlob({
         owner,
         repo,
         content,
-        encoding: 'utf-8'
+        encoding
     });
     return blobData.data;
 });

@@ -19,7 +19,13 @@ async function run(): Promise<void> {
     const files = (await recursive('./docs')).map(file => {
       return {
         name: file,
-        content: fs.readFileSync(`${file}`).toString()
+        content:
+          file.endsWith('png') || file.endsWith('jpg')
+            ? Buffer.from(
+                fs.readFileSync(`${file}`, {encoding: 'binary'}),
+                'binary'
+              ).toString('base64')
+            : fs.readFileSync(`${file}`).toString()
       }
     })
 
@@ -53,7 +59,11 @@ async function run(): Promise<void> {
     const blobs = await Promise.all(
       files.map(async file => {
         const content = file.content
-        return createBlobForFile(client, {owner, repo, content})
+        if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
+          return createBlobForFile(client, {owner, repo, content}, 'base64')
+        } else {
+          return createBlobForFile(client, {owner, repo, content})
+        }
       })
     )
 

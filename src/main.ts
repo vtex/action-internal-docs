@@ -16,7 +16,6 @@ import {context} from '@actions/github/lib/utils'
 
 async function run(): Promise<void> {
   try {
-    console.log('aqui')
     const fileList = fs.readdirSync('./docs')
     const files = fileList.map(file => {
       return {name: file, content: fs.readFileSync(`./docs/${file}`).toString()}
@@ -100,6 +99,7 @@ async function run(): Promise<void> {
 
     await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
   } catch (error) {
+    console.log('aqui')
     setFailed(error)
   }
 }

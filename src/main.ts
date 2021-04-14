@@ -10,7 +10,7 @@ import {
   createNewCommit,
   createNewTree,
   getCurrentCommit,
-  // mergePullRequest,
+  mergePullRequest,
   setBranchRefToCommit
 } from './octokit'
 
@@ -97,18 +97,18 @@ async function run(): Promise<void> {
       commitSha: newCommit.sha
     })
 
-    // const pull = (
-    await client.pulls.create({
-      owner,
-      repo,
-      title: `Docs incoming`,
-      head: branchToPush,
-      base: defaultBranch,
-      body: 'docs incoming'
-    })
-    // ).data
+    const pull = (
+      await client.pulls.create({
+        owner,
+        repo,
+        title: `Docs incoming`,
+        head: branchToPush,
+        base: defaultBranch,
+        body: 'docs incoming'
+      })
+    ).data
 
-    // await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
+    await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
   } catch (error) {
     setFailed(error)
     throw error

@@ -1,4 +1,4 @@
-import {setFailed, getInput} from '@actions/core'
+import {setFailed, getInput, info} from '@actions/core'
 import * as github from '@actions/github'
 import * as fs from 'fs-extra'
 import crypto from 'crypto'
@@ -11,7 +11,8 @@ import {
   createNewTree,
   getCurrentCommit,
   mergePullRequest,
-  setBranchRefToCommit
+  setBranchRefToCommit,
+  deleteOldFiles
 } from './octokit'
 
 async function run(): Promise<void> {
@@ -52,9 +53,15 @@ async function run(): Promise<void> {
       branch: defaultBranch
     })
 
+   info("Files:")
+   info(files)
+
     const paths = files.map(
       file => `docs/${product}/${file.name.replace('docs/', '')}`
     )
+
+   info("paths:")
+   info(paths)
 
     const blobs = await Promise.all(
       files.map(async file => {
@@ -66,6 +73,9 @@ async function run(): Promise<void> {
         }
       })
     )
+
+   info("blobs:")
+   info(blobs)
 
     const newTree = await createNewTree(client, {
       owner,

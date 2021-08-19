@@ -1,3 +1,24 @@
+export const deleteOldFiles = async (
+  octo: any,
+  data: {
+    owner: string
+    repo: string
+    ref: string
+  }
+) => {
+  const {
+    owner,
+    repo,
+    ref
+  } = data
+
+  await octo.git.createCommit({
+    owner,
+    repo,
+    ref
+  })
+}
+
 export const getCurrentCommit = async (
   octo: any,
   data: {

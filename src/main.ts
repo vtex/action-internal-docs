@@ -16,23 +16,25 @@ import {
 
 async function run(): Promise<void> {
   try {
-    const files = (await recursive('./docs')).map(file => {
-      return {
-        name: file,
-        content:
-          file.endsWith('png') || file.endsWith('jpg')
-            ? Buffer.from(
-                fs.readFileSync(file, {encoding: 'binary'}),
-                'binary'
-              ).toString('base64')
-            : fs.readFileSync(file).toString()
-      }
-    })
-
-    // add files metadata
-    for (const file of files.filter(f => f.name.endsWith('md'))) {
-      file.content = `my-metadata of file ${file.name}\n${file.content}`
-    }
+    const files = (await recursive('./docs'))
+      .map(file => {
+        return {
+          name: file,
+          content:
+            file.endsWith('png') || file.endsWith('jpg')
+              ? Buffer.from(
+                  fs.readFileSync(file, {encoding: 'binary'}),
+                  'binary'
+                ).toString('base64')
+              : fs.readFileSync(file).toString()
+        }
+      })
+      .map(file => {
+        if (file.name.endsWith('md')) {
+          file.content = `my-metadata of file ${file.name}\n${file.content}`
+        }
+        return file
+      })
 
     const client = github.getOctokit(getInput('repo-token'))
     const product = getInput('docs-product', {required: true})

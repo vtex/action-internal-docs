@@ -29,6 +29,11 @@ async function run(): Promise<void> {
       }
     })
 
+    // add files metadata
+    for (const file of files.filter(f => f.name.endsWith('md'))) {
+      file.content = `my-metadata of file ${file.name}\n${file.content}`
+    }
+
     const client = github.getOctokit(getInput('repo-token'))
     const product = getInput('docs-product', {required: true})
 

@@ -20,7 +20,10 @@ async function run(): Promise<void> {
       return {
         name: file,
         content:
-          file.endsWith('png') || file.endsWith('jpg')
+          file.endsWith('png') ||
+          file.endsWith('jpg') ||
+          file.endsWith('gif') ||
+          file.endsWith('jpeg')
             ? Buffer.from(
                 fs.readFileSync(file, {encoding: 'binary'}),
                 'binary'

@@ -51,7 +51,10 @@ function run() {
             const files = (yield recursive_readdir_1.default('./docs')).map(file => {
                 return {
                     name: file,
-                    content: file.endsWith('png') || file.endsWith('jpg')
+                    content: file.endsWith('png') ||
+                        file.endsWith('jpg') ||
+                        file.endsWith('gif') ||
+                        file.endsWith('jpeg')
                         ? Buffer.from(fs.readFileSync(file, { encoding: 'binary' }), 'binary').toString('base64')
                         : fs.readFileSync(file).toString()
                 };

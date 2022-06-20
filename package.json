@@ -1,29 +1,18 @@
 {
-  "name": "typescript-action",
+  "name": "action-internal-docs",
   "version": "0.0.0",
   "private": true,
-  "description": "TypeScript template action",
+  "description": "Action to automatically publish your documentation to VTEX Internal Docs",
   "main": "lib/main.js",
   "scripts": {
-    "build": "tsc",
-    "format": "prettier --write **/*.ts",
-    "format-check": "prettier --check **/*.ts",
+    "build": "tsc && ncc build --source-map --license licenses.txt",
     "lint": "eslint --ext ts,js .",
-    "package": "ncc build --source-map --license licenses.txt",
-    "test": "jest",
-    "all": "yarn build && yarn format && yarn lint && yarn package"
+    "test": "jest"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/actions/typescript-action.git"
   },
-  "keywords": [
-    "actions",
-    "node",
-    "setup"
-  ],
-  "author": "",
-  "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.2.6",
     "@actions/exec": "^1.0.4",

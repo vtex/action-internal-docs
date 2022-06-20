@@ -39,16 +39,16 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
+const crypto_1 = __importDefault(__nccwpck_require__(6417));
 const core_1 = __nccwpck_require__(2186);
 const github = __importStar(__nccwpck_require__(5438));
 const fs = __importStar(__nccwpck_require__(5630));
-const crypto_1 = __importDefault(__nccwpck_require__(6417));
 const recursive_readdir_1 = __importDefault(__nccwpck_require__(6715));
 const octokit_1 = __nccwpck_require__(3258);
 function run() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const files = (yield recursive_readdir_1.default('./docs')).map(file => {
+            const files = (yield recursive_readdir_1.default('./docs')).map((file) => {
                 return {
                     name: file,
                     content: file.endsWith('png') ||
@@ -56,7 +56,7 @@ function run() {
                         file.endsWith('gif') ||
                         file.endsWith('jpeg')
                         ? Buffer.from(fs.readFileSync(file, { encoding: 'binary' }), 'binary').toString('base64')
-                        : fs.readFileSync(file).toString()
+                        : fs.readFileSync(file).toString(),
                 };
             });
             const client = github.getOctokit(core_1.getInput('repo-token'));
@@ -64,53 +64,51 @@ function run() {
             const owner = 'vtex';
             const repo = 'internal-docs';
             const defaultBranch = 'main';
-            const current_date = new Date().valueOf().toString();
+            const currentDate = new Date().valueOf().toString();
             const random = Math.random().toString();
             const hash = crypto_1.default
                 .createHash('sha1')
-                .update(current_date + random)
+                .update(currentDate + random)
                 .digest('hex');
             const branchToPush = `docs-${hash}`;
             const currentCommit = yield octokit_1.getCurrentCommit(client, {
                 owner,
                 repo,
-                branch: defaultBranch
+                branch: defaultBranch,
             });
-            const paths = files.map(file => `docs/${product}/${file.name.replace('docs/', '')}`);
+            const paths = files.map((file) => `docs/${product}/${file.name.replace('docs/', '')}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
-                const content = file.content;
+                const { content } = file;
                 if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
                     return octokit_1.createBlobForFile(client, { owner, repo, content }, 'base64');
                 }
-                else {
-                    return octokit_1.createBlobForFile(client, { owner, repo, content });
-                }
+                return octokit_1.createBlobForFile(client, { owner, repo, content });
             })));
             const newTree = yield octokit_1.createNewTree(client, {
                 owner,
                 repo,
                 blobs,
                 paths,
-                parentTreeSha: currentCommit.treeSha
+                parentTreeSha: currentCommit.treeSha,
             });
             yield octokit_1.createBranch(client, {
                 owner,
                 repo,
                 branch: branchToPush,
-                parentSha: currentCommit.commitSha
+                parentSha: currentCommit.commitSha,
             });
             const newCommit = yield octokit_1.createNewCommit(client, {
                 owner,
                 repo,
                 message: `docs`,
                 treeSha: newTree.sha,
-                currentCommitSha: currentCommit.commitSha
+                currentCommitSha: currentCommit.commitSha,
             });
             yield octokit_1.setBranchRefToCommit(client, {
                 owner,
                 repo,
                 branch: branchToPush,
-                commitSha: newCommit.sha
+                commitSha: newCommit.sha,
             });
             const pull = (yield client.pulls.create({
                 owner,
@@ -118,7 +116,7 @@ function run() {
                 title: `Docs incoming`,
                 head: branchToPush,
                 base: defaultBranch,
-                body: 'docs incoming'
+                body: 'docs incoming',
             })).data;
             yield octokit_1.mergePullRequest(client, { owner, repo, pullNumber: pull.number });
         }
@@ -154,17 +152,17 @@ const getCurrentCommit = (octo, data) => __awaiter(void 0, void 0, void 0, funct
     const { data: refData } = yield octo.git.getRef({
         owner,
         repo,
-        ref: `heads/${branch}`
+        ref: `heads/${branch}`,
     });
     const commitSha = refData.object.sha;
     const { data: commitData } = yield octo.git.getCommit({
         owner,
         repo,
-        commit_sha: commitSha
+        commit_sha: commitSha,
     });
     return {
         commitSha,
-        treeSha: commitData.tree.sha
+        treeSha: commitData.tree.sha,
     };
 });
 exports.getCurrentCommit = getCurrentCommit;
@@ -175,7 +173,7 @@ const createBlobForFile = (octo, data, encoding = 'utf-8') => __awaiter(void 0, 
         owner,
         repo,
         content,
-        encoding
+        encoding,
     });
     return blobData.data;
 });
@@ -191,35 +189,35 @@ const createNewTree = (octo, data) => __awaiter(void 0, void 0, void 0, function
         path: paths[index],
         mode,
         type,
-        sha
+        sha,
     }));
     const { data: treeData } = yield octo.git.createTree({
         owner,
         repo,
         tree,
-        base_tree: parentTreeSha
+        base_tree: parentTreeSha,
     });
     return treeData;
 });
 exports.createNewTree = createNewTree;
-const createBranch = (octo, { owner, repo, branch, parentSha }) => __awaiter(void 0, void 0, void 0, function* () {
+const createBranch = (octo, { owner, repo, branch, parentSha, }) => __awaiter(void 0, void 0, void 0, function* () {
     const response = yield octo.git.createRef({
         owner,
         repo,
         ref: `refs/heads/${branch}`,
-        sha: parentSha
+        sha: parentSha,
     });
     return response.data.object.sha;
 });
 exports.createBranch = createBranch;
 const createNewCommit = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const { owner, repo, message = 'Update to course', treeSha, currentCommitSha } = data;
+    const { owner, repo, message = 'Update to course', treeSha, currentCommitSha, } = data;
     const { data: commitData } = yield octo.git.createCommit({
         owner,
         repo,
         message,
         tree: treeSha,
-        parents: [currentCommitSha]
+        parents: [currentCommitSha],
     });
     return commitData;
 });
@@ -230,15 +228,15 @@ const setBranchRefToCommit = (octo, data) => __awaiter(void 0, void 0, void 0, f
         owner,
         repo,
         ref: `heads/${branch}`,
-        sha
+        sha,
     });
 });
 exports.setBranchRefToCommit = setBranchRefToCommit;
-const mergePullRequest = (octo, { owner, repo, pullNumber }) => __awaiter(void 0, void 0, void 0, function* () {
+const mergePullRequest = (octo, { owner, repo, pullNumber, }) => __awaiter(void 0, void 0, void 0, function* () {
     const response = yield octo.pulls.merge({
         owner,
         repo,
-        pull_number: pullNumber
+        pull_number: pullNumber,
     });
     return response.data;
 });

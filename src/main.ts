@@ -1,7 +1,8 @@
-import {setFailed, getInput} from '@actions/core'
+import crypto from 'crypto'
+
+import { setFailed, getInput } from '@actions/core'
 import * as github from '@actions/github'
 import * as fs from 'fs-extra'
-import crypto from 'crypto'
 import recursive from 'recursive-readdir'
 
 import {
@@ -11,12 +12,12 @@ import {
   createNewTree,
   getCurrentCommit,
   mergePullRequest,
-  setBranchRefToCommit
+  setBranchRefToCommit,
 } from './octokit'
 
 async function run(): Promise<void> {
   try {
-    const files = (await recursive('./docs')).map(file => {
+    const files = (await recursive('./docs')).map((file) => {
       return {
         name: file,
         content:
@@ -25,26 +26,26 @@ async function run(): Promise<void> {
           file.endsWith('gif') ||
           file.endsWith('jpeg')
             ? Buffer.from(
-                fs.readFileSync(file, {encoding: 'binary'}),
+                fs.readFileSync(file, { encoding: 'binary' }),
                 'binary'
               ).toString('base64')
-            : fs.readFileSync(file).toString()
+            : fs.readFileSync(file).toString(),
       }
     })
 
     const client = github.getOctokit(getInput('repo-token'))
-    const product = getInput('docs-product', {required: true})
+    const product = getInput('docs-product', { required: true })
 
     const owner = 'vtex'
     const repo = 'internal-docs'
     const defaultBranch = 'main'
 
-    const current_date = new Date().valueOf().toString()
+    const currentDate = new Date().valueOf().toString()
     const random = Math.random().toString()
 
     const hash = crypto
       .createHash('sha1')
-      .update(current_date + random)
+      .update(currentDate + random)
       .digest('hex')
 
     const branchToPush = `docs-${hash}`
@@ -52,21 +53,22 @@ async function run(): Promise<void> {
     const currentCommit = await getCurrentCommit(client, {
       owner,
       repo,
-      branch: defaultBranch
+      branch: defaultBranch,
     })
 
     const paths = files.map(
-      file => `docs/${product}/${file.name.replace('docs/', '')}`
+      (file) => `docs/${product}/${file.name.replace('docs/', '')}`
     )
 
     const blobs = await Promise.all(
-      files.map(async file => {
-        const content = file.content
+      files.map(async (file) => {
+        const { content } = file
+
         if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
-          return createBlobForFile(client, {owner, repo, content}, 'base64')
-        } else {
-          return createBlobForFile(client, {owner, repo, content})
+          return createBlobForFile(client, { owner, repo, content }, 'base64')
         }
+
+        return createBlobForFile(client, { owner, repo, content })
       })
     )
 
@@ -75,14 +77,14 @@ async function run(): Promise<void> {
       repo,
       blobs,
       paths,
-      parentTreeSha: currentCommit.treeSha
+      parentTreeSha: currentCommit.treeSha,
     })
 
     await createBranch(client, {
       owner,
       repo,
       branch: branchToPush,
-      parentSha: currentCommit.commitSha
+      parentSha: currentCommit.commitSha,
     })
 
     const newCommit = await createNewCommit(client, {
@@ -90,14 +92,14 @@ async function run(): Promise<void> {
       repo,
       message: `docs`,
       treeSha: newTree.sha,
-      currentCommitSha: currentCommit.commitSha
+      currentCommitSha: currentCommit.commitSha,
     })
 
     await setBranchRefToCommit(client, {
       owner,
       repo,
       branch: branchToPush,
-      commitSha: newCommit.sha
+      commitSha: newCommit.sha,
     })
 
     const pull = (
@@ -107,11 +109,11 @@ async function run(): Promise<void> {
         title: `Docs incoming`,
         head: branchToPush,
         base: defaultBranch,
-        body: 'docs incoming'
+        body: 'docs incoming',
       })
     ).data
 
-    await mergePullRequest(client, {owner, repo, pullNumber: pull.number})
+    await mergePullRequest(client, { owner, repo, pullNumber: pull.number })
   } catch (error) {
     setFailed(error)
     throw error

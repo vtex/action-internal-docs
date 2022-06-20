@@ -4,10 +4,10 @@
     "lib": ["es6"],
     "module": "commonjs",
     "outDir": "./lib",
-    "rootDir": "./src",
     "strict": true,
     "noImplicitAny": true,
     "esModuleInterop": true
   },
+  "include": [".eslintrc.js", "./**/*.js", "./**/*.ts"],
   "exclude": ["node_modules"]
 }

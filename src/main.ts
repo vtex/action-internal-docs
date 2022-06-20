@@ -50,6 +50,8 @@ async function run(): Promise<void> {
 
     const repoOwner = core.getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
     const repoName = core.getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
+    const repoBranch =
+      core.getInput('repo-branch') ?? INTERNAL_DOCS_DEFAULT_BRANCH
 
     const currentDate = new Date().valueOf().toString()
     const random = Math.random().toString()
@@ -83,9 +85,17 @@ async function run(): Promise<void> {
       })
     )
 
+    core.debug(`Getting current commit for branch ${repoBranch}`)
+
     const currentCommit = await kit.getCurrentCommit({
-      branch: INTERNAL_DOCS_DEFAULT_BRANCH,
+      branch: repoBranch,
     })
+
+    core.debug(
+      `Creating tree for paths with parent ${
+        currentCommit.treeSha
+      }\n${paths.join('\n')}`
+    )
 
     const newTree = await kit.createNewTree({
       blobs,
@@ -93,16 +103,22 @@ async function run(): Promise<void> {
       parentTreeSha: currentCommit.treeSha,
     })
 
+    core.debug(`Creating branch ${branchToPush}`)
+
     await kit.createBranch({
       branch: branchToPush,
       parentSha: currentCommit.commitSha,
     })
+
+    core.debug(`Creating commit in tree ${newTree.sha}`)
 
     const newCommit = await kit.createNewCommit({
       message: `docs`,
       treeSha: newTree.sha,
       currentCommitSha: currentCommit.commitSha,
     })
+
+    core.debug(`Set branch ref to commit ${newCommit.sha}`)
 
     await kit.setBranchRefToCommit({
       branch: branchToPush,
@@ -111,10 +127,12 @@ async function run(): Promise<void> {
 
     const { owner: currentOwner, repo: currentRepo } = github.context.repo
 
+    core.debug('Creating pull-request for branch')
+
     const pull = await kit.createPullRequest({
       title: `Docs sync (${currentOwner}/${currentRepo})`,
       head: branchToPush,
-      base: INTERNAL_DOCS_DEFAULT_BRANCH,
+      base: repoBranch,
       body: `
 Documentation synchronization from [GitHub action]
 
@@ -127,17 +145,25 @@ https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
     })
 
     try {
+      core.debug('Trying to automatically merge pull-request')
+
       await kit.mergePullRequest({
         pullNumber: pull.number,
       })
-    } catch {
+    } catch (error) {
+      core.debug('Pull-request auto merge failed')
+      core.debug(error)
+
       await kit.closePullRequestAndDeleteBranch({
         pullNumber: pull.number,
         head: branchToPush,
-        reason: `Failed to merge pull-request to branch "${INTERNAL_DOCS_DEFAULT_BRANCH}"`,
+        reason: `Failed to merge pull-request to branch "${repoBranch}"`,
       })
     }
   } catch (error) {
+    core.debug('An unexpected error has ocurred')
+    core.debug(error)
+
     core.setFailed(error)
     throw error
   }

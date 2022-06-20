@@ -62,7 +62,7 @@ const exec_1 = __nccwpck_require__(1514);
 const octokit_1 = __nccwpck_require__(3258);
 const constants_1 = __nccwpck_require__(5105);
 function run() {
-    var _a, _b;
+    var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
         try {
             const ref = core.getInput('ref');
@@ -89,6 +89,7 @@ function run() {
             const product = core.getInput('docs-product', { required: true });
             const repoOwner = (_a = core.getInput('repo-owner')) !== null && _a !== void 0 ? _a : constants_1.INTERNAL_DOCS_REPO_OWNER;
             const repoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
+            const repoBranch = (_c = core.getInput('repo-branch')) !== null && _c !== void 0 ? _c : constants_1.INTERNAL_DOCS_DEFAULT_BRANCH;
             const currentDate = new Date().valueOf().toString();
             const random = Math.random().toString();
             const hash = node_crypto_1.default
@@ -105,32 +106,38 @@ function run() {
                 }
                 return kit.createBlobForFile({ content });
             })));
+            core.debug(`Getting current commit for branch ${repoBranch}`);
             const currentCommit = yield kit.getCurrentCommit({
-                branch: constants_1.INTERNAL_DOCS_DEFAULT_BRANCH,
+                branch: repoBranch,
             });
+            core.debug(`Creating tree for paths with parent ${currentCommit.treeSha}\n${paths.join('\n')}`);
             const newTree = yield kit.createNewTree({
                 blobs,
                 paths,
                 parentTreeSha: currentCommit.treeSha,
             });
+            core.debug(`Creating branch ${branchToPush}`);
             yield kit.createBranch({
                 branch: branchToPush,
                 parentSha: currentCommit.commitSha,
             });
+            core.debug(`Creating commit in tree ${newTree.sha}`);
             const newCommit = yield kit.createNewCommit({
                 message: `docs`,
                 treeSha: newTree.sha,
                 currentCommitSha: currentCommit.commitSha,
             });
+            core.debug(`Set branch ref to commit ${newCommit.sha}`);
             yield kit.setBranchRefToCommit({
                 branch: branchToPush,
                 commitSha: newCommit.sha,
             });
             const { owner: currentOwner, repo: currentRepo } = github.context.repo;
+            core.debug('Creating pull-request for branch');
             const pull = yield kit.createPullRequest({
                 title: `Docs sync (${currentOwner}/${currentRepo})`,
                 head: branchToPush,
-                base: constants_1.INTERNAL_DOCS_DEFAULT_BRANCH,
+                base: repoBranch,
                 body: `
 Documentation synchronization from [GitHub action]
 
@@ -142,19 +149,24 @@ https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
 `.trim(),
             });
             try {
+                core.debug('Trying to automatically merge pull-request');
                 yield kit.mergePullRequest({
                     pullNumber: pull.number,
                 });
             }
-            catch (_c) {
+            catch (error) {
+                core.debug('Pull-request auto merge failed');
+                core.debug(error);
                 yield kit.closePullRequestAndDeleteBranch({
                     pullNumber: pull.number,
                     head: branchToPush,
-                    reason: `Failed to merge pull-request to branch "${constants_1.INTERNAL_DOCS_DEFAULT_BRANCH}"`,
+                    reason: `Failed to merge pull-request to branch "${repoBranch}"`,
                 });
             }
         }
         catch (error) {
+            core.debug('An unexpected error has ocurred');
+            core.debug(error);
             core.setFailed(error);
             throw error;
         }

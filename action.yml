@@ -9,6 +9,8 @@ inputs:
     description: Owner of the docs repository
   repo-name:
     description: Name of the docs repository
+  repo-branch:
+    description: Base branch of the docs repository
   docs-product:
     required: true
     description: Name of your product team (e.g. Identity, Checkout, Cloud Services, etc)

@@ -18,5 +18,6 @@ jobs:
           repo-owner: vtex
           repo-name: action-internal-docs
           repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-branch: test-case/base
           docs-product: Internal Docs Test
           ref: test-case/docs

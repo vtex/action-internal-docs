@@ -1,10 +1,10 @@
 import crypto from 'node:crypto'
-import { execSync } from 'node:child_process'
 
 import * as github from '@actions/github'
 import * as core from '@actions/core'
 import * as fs from 'fs-extra'
 import recursive from 'recursive-readdir'
+import { exec } from '@actions/exec'
 
 import { TechDocsKit } from './octokit'
 import {
@@ -19,7 +19,8 @@ async function run(): Promise<void> {
     const ref = core.getInput('ref')
 
     if (ref) {
-      execSync(`git checkout ${ref}`)
+      await exec('git', ['fetch', 'origin', ref])
+      await exec('git', ['checkout', ref])
     }
 
     if (!fs.existsSync(DOCS_FOLDER)) {

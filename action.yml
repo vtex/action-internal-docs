@@ -5,6 +5,10 @@ inputs:
   repo-token:
     required: true
     description: 'GitHub token for repository access'
+  repo-owner:
+    description: 'Owner of the docs repository'
+  repo-name:
+    description: 'Name of the docs repository'
   docs-product:
     required: true
     description: 'Name of your product team (e.g. Identity, Checkout, Cloud Services, etc)'

@@ -5,15 +5,12 @@ import * as github from '@actions/github'
 import * as fs from 'fs-extra'
 import recursive from 'recursive-readdir'
 
+import { TechDocsKit } from './octokit'
 import {
-  createBlobForFile,
-  createBranch,
-  createNewCommit,
-  createNewTree,
-  getCurrentCommit,
-  mergePullRequest,
-  setBranchRefToCommit,
-} from './octokit'
+  INTERNAL_DOCS_REPO_NAME,
+  INTERNAL_DOCS_REPO_OWNER,
+  INTERNAL_DOCS_DEFAULT_BRANCH,
+} from './constants'
 
 async function run(): Promise<void> {
   try {
@@ -33,12 +30,11 @@ async function run(): Promise<void> {
       }
     })
 
-    const client = github.getOctokit(getInput('repo-token'))
+    const repoToken = getInput('repo-token')
     const product = getInput('docs-product', { required: true })
 
-    const owner = 'vtex'
-    const repo = 'internal-docs'
-    const defaultBranch = 'main'
+    const repoOwner = getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
+    const repoName = getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
 
     const currentDate = new Date().valueOf().toString()
     const random = Math.random().toString()
@@ -50,11 +46,11 @@ async function run(): Promise<void> {
 
     const branchToPush = `docs-${hash}`
 
-    const currentCommit = await getCurrentCommit(client, {
-      owner,
-      repo,
-      branch: defaultBranch,
-    })
+    const kit = new TechDocsKit(
+      github.getOctokit(repoToken),
+      repoOwner,
+      repoName
+    )
 
     const paths = files.map(
       (file) => `docs/${product}/${file.name.replace('docs/', '')}`
@@ -65,55 +61,67 @@ async function run(): Promise<void> {
         const { content } = file
 
         if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
-          return createBlobForFile(client, { owner, repo, content }, 'base64')
+          return kit.createBlobForFile({ content }, 'base64')
         }
 
-        return createBlobForFile(client, { owner, repo, content })
+        return kit.createBlobForFile({ content })
       })
     )
 
-    const newTree = await createNewTree(client, {
-      owner,
-      repo,
+    const currentCommit = await kit.getCurrentCommit({
+      branch: INTERNAL_DOCS_DEFAULT_BRANCH,
+    })
+
+    const newTree = await kit.createNewTree({
       blobs,
       paths,
       parentTreeSha: currentCommit.treeSha,
     })
 
-    await createBranch(client, {
-      owner,
-      repo,
+    await kit.createBranch({
       branch: branchToPush,
       parentSha: currentCommit.commitSha,
     })
 
-    const newCommit = await createNewCommit(client, {
-      owner,
-      repo,
+    const newCommit = await kit.createNewCommit({
       message: `docs`,
       treeSha: newTree.sha,
       currentCommitSha: currentCommit.commitSha,
     })
 
-    await setBranchRefToCommit(client, {
-      owner,
-      repo,
+    await kit.setBranchRefToCommit({
       branch: branchToPush,
       commitSha: newCommit.sha,
     })
 
-    const pull = (
-      await client.pulls.create({
-        owner,
-        repo,
-        title: `Docs incoming`,
-        head: branchToPush,
-        base: defaultBranch,
-        body: 'docs incoming',
-      })
-    ).data
+    const { owner: currentOwner, repo: currentRepo } = github.context.repo
 
-    await mergePullRequest(client, { owner, repo, pullNumber: pull.number })
+    const pull = await kit.createPullRequest({
+      title: `Docs sync (${currentOwner}/${currentRepo})`,
+      head: branchToPush,
+      base: INTERNAL_DOCS_DEFAULT_BRANCH,
+      body: `
+Documentation synchronization from [GitHub action]
+
+This update is refers to the following commit:
+
+https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
+
+[GitHub action]: http://github.com/vtex/action-internal-docs
+`.trim(),
+    })
+
+    try {
+      await kit.mergePullRequest({
+        pullNumber: pull.number,
+      })
+    } catch {
+      await kit.closePullRequestAndDeleteBranch({
+        pullNumber: pull.number,
+        head: branchToPush,
+        reason: `Failed to merge pull-request to branch "${INTERNAL_DOCS_DEFAULT_BRANCH}"`,
+      })
+    }
   } catch (error) {
     setFailed(error)
     throw error

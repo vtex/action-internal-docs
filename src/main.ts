@@ -1,7 +1,8 @@
-import crypto from 'crypto'
+import crypto from 'node:crypto'
+import { execSync } from 'node:child_process'
 
-import { setFailed, getInput } from '@actions/core'
 import * as github from '@actions/github'
+import * as core from '@actions/core'
 import * as fs from 'fs-extra'
 import recursive from 'recursive-readdir'
 
@@ -10,11 +11,24 @@ import {
   INTERNAL_DOCS_REPO_NAME,
   INTERNAL_DOCS_REPO_OWNER,
   INTERNAL_DOCS_DEFAULT_BRANCH,
+  DOCS_FOLDER,
 } from './constants'
 
 async function run(): Promise<void> {
   try {
-    const files = (await recursive('./docs')).map((file) => {
+    const ref = core.getInput('ref')
+
+    if (ref) {
+      execSync(`git checkout ${ref}`)
+    }
+
+    if (!fs.existsSync(DOCS_FOLDER)) {
+      core.info(`Folder ${DOCS_FOLDER} does not exist, exiting.`)
+
+      return
+    }
+
+    const files = (await recursive(DOCS_FOLDER)).map((file) => {
       return {
         name: file,
         content:
@@ -30,11 +44,11 @@ async function run(): Promise<void> {
       }
     })
 
-    const repoToken = getInput('repo-token')
-    const product = getInput('docs-product', { required: true })
+    const repoToken = core.getInput('repo-token')
+    const product = core.getInput('docs-product', { required: true })
 
-    const repoOwner = getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
-    const repoName = getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
+    const repoOwner = core.getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
+    const repoName = core.getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
 
     const currentDate = new Date().valueOf().toString()
     const random = Math.random().toString()
@@ -123,7 +137,7 @@ https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
       })
     }
   } catch (error) {
-    setFailed(error)
+    core.setFailed(error)
     throw error
   }
 }

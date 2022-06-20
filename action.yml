@@ -1,17 +1,19 @@
-name: 'Internal Docs'
-description: 'Action to automatically publish your documentation to VTEX Internal Docs'
-author: 'VTEX'
+name: Internal Docs
+description: Action to automatically publish your documentation to VTEX Internal Docs
+author: VTEX
 inputs:
   repo-token:
     required: true
-    description: 'GitHub token for repository access'
+    description: GitHub token for repository access
   repo-owner:
-    description: 'Owner of the docs repository'
+    description: Owner of the docs repository
   repo-name:
-    description: 'Name of the docs repository'
+    description: Name of the docs repository
   docs-product:
     required: true
-    description: 'Name of your product team (e.g. Identity, Checkout, Cloud Services, etc)'
+    description: Name of your product team (e.g. Identity, Checkout, Cloud Services, etc)
+  ref:
+    description: Git ref to use as base for docs crawling
 runs:
   using: node16
   main: dist/index.js

@@ -1,13 +1,13 @@
-name: 'Your name here'
-description: 'Provide a description here'
-author: 'Your name or organization here'
+name: 'Internal Docs'
+description: 'Action to automatically publish your documentation to VTEX Internal Docs'
+author: 'VTEX'
 inputs:
-  repo-token: # change this
+  repo-token:
     required: true
-    description: 'input description here'
-  docs-product: # change this
+    description: 'GitHub token for repository access'
+  docs-product:
     required: true
-    description: 'input description here'
+    description: 'Name of your product team (e.g. Identity, Checkout, Cloud Services, etc)'
 runs:
-  using: 'node12'
-  main: 'dist/index.js'
+  using: node16
+  main: dist/index.js

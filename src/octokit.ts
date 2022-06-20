@@ -204,7 +204,7 @@ Closing pull request, reason: ${reason}
     await this.client.git.deleteRef({
       owner: this.owner,
       repo: this.repo,
-      ref: head,
+      ref: `head/${head}`,
     })
   }
 }

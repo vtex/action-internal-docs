@@ -53,6 +53,8 @@ async function run(): Promise<void> {
     const repoBranch =
       core.getInput('repo-branch') ?? INTERNAL_DOCS_DEFAULT_BRANCH
 
+    const autoMergeEnabled = core.getInput('auto-merge')
+
     const currentDate = new Date().valueOf().toString()
     const random = Math.random().toString()
 
@@ -147,9 +149,13 @@ https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
     try {
       core.debug('Trying to automatically merge pull-request')
 
-      await kit.mergePullRequest({
-        pullNumber: pull.number,
-      })
+      if (autoMergeEnabled === 'true') {
+        await kit.mergePullRequest({
+          pullNumber: pull.number,
+        })
+      } else {
+        core.info('Auto merge skipped due to action configuration')
+      }
     } catch (error) {
       core.debug('Pull-request auto merge failed')
       core.debug(error)

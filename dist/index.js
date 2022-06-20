@@ -90,6 +90,7 @@ function run() {
             const repoOwner = (_a = core.getInput('repo-owner')) !== null && _a !== void 0 ? _a : constants_1.INTERNAL_DOCS_REPO_OWNER;
             const repoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
             const repoBranch = (_c = core.getInput('repo-branch')) !== null && _c !== void 0 ? _c : constants_1.INTERNAL_DOCS_DEFAULT_BRANCH;
+            const autoMergeEnabled = core.getInput('auto-merge');
             const currentDate = new Date().valueOf().toString();
             const random = Math.random().toString();
             const hash = node_crypto_1.default
@@ -150,9 +151,14 @@ https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
             });
             try {
                 core.debug('Trying to automatically merge pull-request');
-                yield kit.mergePullRequest({
-                    pullNumber: pull.number,
-                });
+                if (autoMergeEnabled === 'true') {
+                    yield kit.mergePullRequest({
+                        pullNumber: pull.number,
+                    });
+                }
+                else {
+                    core.info('Auto merge skipped due to action configuration');
+                }
             }
             catch (error) {
                 core.debug('Pull-request auto merge failed');
@@ -329,7 +335,7 @@ Closing pull request, reason: ${reason}
             yield this.client.git.deleteRef({
                 owner: this.owner,
                 repo: this.repo,
-                ref: head,
+                ref: `head/${head}`,
             });
         });
     }

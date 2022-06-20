@@ -7,15 +7,24 @@ inputs:
     description: GitHub token for repository access
   repo-owner:
     description: Owner of the docs repository
+    required: false
   repo-name:
     description: Name of the docs repository
+    required: false
   repo-branch:
     description: Base branch of the docs repository
+    required: false
+  auto-merge:
+    description: Whether to try to automatically merge docs pull-requests in upstream repository
+    default: true
+    type: boolean
+    required: false
   docs-product:
     required: true
     description: Name of your product team (e.g. Identity, Checkout, Cloud Services, etc)
   ref:
-    description: Git ref to use as base for docs crawling
+    description: Git ref of own repository to use as base for docs crawling
+    required: false
 runs:
   using: node16
   main: dist/index.js

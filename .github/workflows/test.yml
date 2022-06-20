@@ -20,4 +20,5 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
           repo-branch: test-case/base
           docs-product: Internal Docs Test
+          auto-merge: false
           ref: test-case/docs

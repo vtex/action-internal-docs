@@ -1,6 +1,20 @@
-require('./sourcemap-register.js');module.exports =
-/******/ (() => { // webpackBootstrap
+require('./sourcemap-register.js');/******/ (() => { // webpackBootstrap
 /******/ 	var __webpack_modules__ = ({
+
+/***/ 5105:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.DOCS_FOLDER = exports.INTERNAL_DOCS_DEFAULT_BRANCH = exports.INTERNAL_DOCS_REPO_NAME = exports.INTERNAL_DOCS_REPO_OWNER = void 0;
+exports.INTERNAL_DOCS_REPO_OWNER = 'vtex';
+exports.INTERNAL_DOCS_REPO_NAME = 'internal-docs';
+exports.INTERNAL_DOCS_DEFAULT_BRANCH = 'main';
+exports.DOCS_FOLDER = 'docs';
+
+
+/***/ }),
 
 /***/ 3109:
 /***/ (function(__unused_webpack_module, exports, __nccwpck_require__) {
@@ -39,16 +53,27 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const crypto_1 = __importDefault(__nccwpck_require__(6417));
-const core_1 = __nccwpck_require__(2186);
+const crypto_1 = __importDefault(__nccwpck_require__(6113));
+const child_process_1 = __nccwpck_require__(2081);
 const github = __importStar(__nccwpck_require__(5438));
+const core = __importStar(__nccwpck_require__(2186));
 const fs = __importStar(__nccwpck_require__(5630));
 const recursive_readdir_1 = __importDefault(__nccwpck_require__(6715));
 const octokit_1 = __nccwpck_require__(3258);
+const constants_1 = __nccwpck_require__(5105);
 function run() {
+    var _a, _b;
     return __awaiter(this, void 0, void 0, function* () {
         try {
-            const files = (yield recursive_readdir_1.default('./docs')).map((file) => {
+            const ref = core.getInput('ref');
+            if (ref) {
+                child_process_1.execSync(`git checkout ${ref}`);
+            }
+            if (!fs.existsSync(constants_1.DOCS_FOLDER)) {
+                core.info(`Folder ${constants_1.DOCS_FOLDER} does not exist, exiting.`);
+                return;
+            }
+            const files = (yield recursive_readdir_1.default(constants_1.DOCS_FOLDER)).map((file) => {
                 return {
                     name: file,
                     content: file.endsWith('png') ||
@@ -59,11 +84,10 @@ function run() {
                         : fs.readFileSync(file).toString(),
                 };
             });
-            const client = github.getOctokit(core_1.getInput('repo-token'));
-            const product = core_1.getInput('docs-product', { required: true });
-            const owner = 'vtex';
-            const repo = 'internal-docs';
-            const defaultBranch = 'main';
+            const repoToken = core.getInput('repo-token');
+            const product = core.getInput('docs-product', { required: true });
+            const repoOwner = (_a = core.getInput('repo-owner')) !== null && _a !== void 0 ? _a : constants_1.INTERNAL_DOCS_REPO_OWNER;
+            const repoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
             const currentDate = new Date().valueOf().toString();
             const random = Math.random().toString();
             const hash = crypto_1.default
@@ -71,57 +95,66 @@ function run() {
                 .update(currentDate + random)
                 .digest('hex');
             const branchToPush = `docs-${hash}`;
-            const currentCommit = yield octokit_1.getCurrentCommit(client, {
-                owner,
-                repo,
-                branch: defaultBranch,
-            });
+            const kit = new octokit_1.TechDocsKit(github.getOctokit(repoToken), repoOwner, repoName);
             const paths = files.map((file) => `docs/${product}/${file.name.replace('docs/', '')}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
                 const { content } = file;
                 if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
-                    return octokit_1.createBlobForFile(client, { owner, repo, content }, 'base64');
+                    return kit.createBlobForFile({ content }, 'base64');
                 }
-                return octokit_1.createBlobForFile(client, { owner, repo, content });
+                return kit.createBlobForFile({ content });
             })));
-            const newTree = yield octokit_1.createNewTree(client, {
-                owner,
-                repo,
+            const currentCommit = yield kit.getCurrentCommit({
+                branch: constants_1.INTERNAL_DOCS_DEFAULT_BRANCH,
+            });
+            const newTree = yield kit.createNewTree({
                 blobs,
                 paths,
                 parentTreeSha: currentCommit.treeSha,
             });
-            yield octokit_1.createBranch(client, {
-                owner,
-                repo,
+            yield kit.createBranch({
                 branch: branchToPush,
                 parentSha: currentCommit.commitSha,
             });
-            const newCommit = yield octokit_1.createNewCommit(client, {
-                owner,
-                repo,
+            const newCommit = yield kit.createNewCommit({
                 message: `docs`,
                 treeSha: newTree.sha,
                 currentCommitSha: currentCommit.commitSha,
             });
-            yield octokit_1.setBranchRefToCommit(client, {
-                owner,
-                repo,
+            yield kit.setBranchRefToCommit({
                 branch: branchToPush,
                 commitSha: newCommit.sha,
             });
-            const pull = (yield client.pulls.create({
-                owner,
-                repo,
-                title: `Docs incoming`,
+            const { owner: currentOwner, repo: currentRepo } = github.context.repo;
+            const pull = yield kit.createPullRequest({
+                title: `Docs sync (${currentOwner}/${currentRepo})`,
                 head: branchToPush,
-                base: defaultBranch,
-                body: 'docs incoming',
-            })).data;
-            yield octokit_1.mergePullRequest(client, { owner, repo, pullNumber: pull.number });
+                base: constants_1.INTERNAL_DOCS_DEFAULT_BRANCH,
+                body: `
+Documentation synchronization from [GitHub action]
+
+This update is refers to the following commit:
+
+https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
+
+[GitHub action]: http://github.com/vtex/action-internal-docs
+`.trim(),
+            });
+            try {
+                yield kit.mergePullRequest({
+                    pullNumber: pull.number,
+                });
+            }
+            catch (_c) {
+                yield kit.closePullRequestAndDeleteBranch({
+                    pullNumber: pull.number,
+                    head: branchToPush,
+                    reason: `Failed to merge pull-request to branch "${constants_1.INTERNAL_DOCS_DEFAULT_BRANCH}"`,
+                });
+            }
         }
         catch (error) {
-            core_1.setFailed(error);
+            core.setFailed(error);
             throw error;
         }
     });
@@ -146,101 +179,149 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.mergePullRequest = exports.setBranchRefToCommit = exports.createNewCommit = exports.createBranch = exports.createNewTree = exports.createBlobForFile = exports.getCurrentCommit = void 0;
-const getCurrentCommit = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const { owner, repo, branch = 'master' } = data;
-    const { data: refData } = yield octo.git.getRef({
-        owner,
-        repo,
-        ref: `heads/${branch}`,
-    });
-    const commitSha = refData.object.sha;
-    const { data: commitData } = yield octo.git.getCommit({
-        owner,
-        repo,
-        commit_sha: commitSha,
-    });
-    return {
-        commitSha,
-        treeSha: commitData.tree.sha,
-    };
-});
-exports.getCurrentCommit = getCurrentCommit;
-const createBlobForFile = (octo, data, encoding = 'utf-8') => __awaiter(void 0, void 0, void 0, function* () {
-    // const content = await getFileAsUTF8(filePath)
-    const { owner, repo, content } = data;
-    const blobData = yield octo.git.createBlob({
-        owner,
-        repo,
-        content,
-        encoding,
-    });
-    return blobData.data;
-});
-exports.createBlobForFile = createBlobForFile;
-const createNewTree = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const { owner, repo, blobs, paths, parentTreeSha } = data;
-    const mode = '100644';
-    const type = 'blob';
-    if (!blobs.length || blobs.length !== paths.length) {
-        throw new Error('You should provide the same number of blobs and paths');
+exports.TechDocsKit = void 0;
+const DEFAULT_BRANCH = 'main';
+class TechDocsKit {
+    constructor(client, owner, repo) {
+        this.client = client;
+        this.owner = owner;
+        this.repo = repo;
     }
-    const tree = blobs.map(({ sha }, index) => ({
-        path: paths[index],
-        mode,
-        type,
-        sha,
-    }));
-    const { data: treeData } = yield octo.git.createTree({
-        owner,
-        repo,
-        tree,
-        base_tree: parentTreeSha,
-    });
-    return treeData;
-});
-exports.createNewTree = createNewTree;
-const createBranch = (octo, { owner, repo, branch, parentSha, }) => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield octo.git.createRef({
-        owner,
-        repo,
-        ref: `refs/heads/${branch}`,
-        sha: parentSha,
-    });
-    return response.data.object.sha;
-});
-exports.createBranch = createBranch;
-const createNewCommit = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const { owner, repo, message = 'Update to course', treeSha, currentCommitSha, } = data;
-    const { data: commitData } = yield octo.git.createCommit({
-        owner,
-        repo,
-        message,
-        tree: treeSha,
-        parents: [currentCommitSha],
-    });
-    return commitData;
-});
-exports.createNewCommit = createNewCommit;
-const setBranchRefToCommit = (octo, data) => __awaiter(void 0, void 0, void 0, function* () {
-    const { owner, repo, branch = 'main', commitSha: sha } = data;
-    return octo.git.updateRef({
-        owner,
-        repo,
-        ref: `heads/${branch}`,
-        sha,
-    });
-});
-exports.setBranchRefToCommit = setBranchRefToCommit;
-const mergePullRequest = (octo, { owner, repo, pullNumber, }) => __awaiter(void 0, void 0, void 0, function* () {
-    const response = yield octo.pulls.merge({
-        owner,
-        repo,
-        pull_number: pullNumber,
-    });
-    return response.data;
-});
-exports.mergePullRequest = mergePullRequest;
+    getCurrentCommit({ branch = DEFAULT_BRANCH, }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { data: refData } = yield this.client.git.getRef({
+                owner: this.owner,
+                repo: this.repo,
+                ref: `heads/${branch}`,
+            });
+            const commitSha = refData.object.sha;
+            const { data: commitData } = yield this.client.git.getCommit({
+                owner: this.owner,
+                repo: this.repo,
+                commit_sha: commitSha,
+            });
+            return {
+                commitSha,
+                treeSha: commitData.tree.sha,
+            };
+        });
+    }
+    createBlobForFile({ content, }, encoding = 'utf-8') {
+        return __awaiter(this, void 0, void 0, function* () {
+            // const content = await getFileAsUTF8(filePath)
+            const blobData = yield this.client.git.createBlob({
+                owner: this.owner,
+                repo: this.repo,
+                content,
+                encoding,
+            });
+            return blobData.data;
+        });
+    }
+    createNewTree({ blobs, paths, parentTreeSha, }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const mode = '100644';
+            const type = 'blob';
+            if (!blobs.length || blobs.length !== paths.length) {
+                throw new Error('You should provide the same number of blobs and paths');
+            }
+            const tree = blobs.map(({ sha }, index) => ({
+                path: paths[index],
+                mode,
+                type,
+                sha,
+            }));
+            const { data: treeData } = yield this.client.git.createTree({
+                owner: this.owner,
+                repo: this.repo,
+                tree,
+                base_tree: parentTreeSha,
+            });
+            return treeData;
+        });
+    }
+    createBranch({ branch, parentSha, }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield this.client.git.createRef({
+                owner: this.owner,
+                repo: this.repo,
+                ref: `refs/heads/${branch}`,
+                sha: parentSha,
+            });
+            return response.data.object.sha;
+        });
+    }
+    createNewCommit({ message = 'Update to course', treeSha, currentCommitSha, }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { data: commitData } = yield this.client.git.createCommit({
+                owner: this.owner,
+                repo: this.repo,
+                message,
+                tree: treeSha,
+                parents: [currentCommitSha],
+            });
+            return commitData;
+        });
+    }
+    setBranchRefToCommit({ branch = DEFAULT_BRANCH, commitSha, }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return this.client.git.updateRef({
+                owner: this.owner,
+                repo: this.repo,
+                ref: `heads/${branch}`,
+                sha: commitSha,
+            });
+        });
+    }
+    mergePullRequest({ pullNumber }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield this.client.pulls.merge({
+                owner: this.owner,
+                repo: this.repo,
+                pull_number: pullNumber,
+                merge_method: 'rebase',
+            });
+            return response.data;
+        });
+    }
+    createPullRequest({ title, body, head, base, }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const response = yield this.client.pulls.create({
+                owner: this.owner,
+                repo: this.repo,
+                title,
+                head,
+                base,
+                body,
+            });
+            return response.data;
+        });
+    }
+    closePullRequestAndDeleteBranch({ pullNumber, head, reason, }) {
+        return __awaiter(this, void 0, void 0, function* () {
+            yield this.client.issues.createComment({
+                owner: this.owner,
+                repo: this.repo,
+                issue_number: pullNumber,
+                body: `
+Closing pull request, reason: ${reason}
+`.trim(),
+            });
+            yield this.client.pulls.update({
+                owner: this.owner,
+                repo: this.repo,
+                pull_number: pullNumber,
+                state: 'closed',
+            });
+            yield this.client.git.deleteRef({
+                owner: this.owner,
+                repo: this.repo,
+                ref: head,
+            });
+        });
+    }
+}
+exports.TechDocsKit = TechDocsKit;
 
 
 /***/ }),
@@ -258,7 +339,7 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const os = __importStar(__nccwpck_require__(2087));
+const os = __importStar(__nccwpck_require__(2037));
 const utils_1 = __nccwpck_require__(5278);
 /**
  * Commands
@@ -356,8 +437,8 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 const command_1 = __nccwpck_require__(7351);
 const file_command_1 = __nccwpck_require__(717);
 const utils_1 = __nccwpck_require__(5278);
-const os = __importStar(__nccwpck_require__(2087));
-const path = __importStar(__nccwpck_require__(5622));
+const os = __importStar(__nccwpck_require__(2037));
+const path = __importStar(__nccwpck_require__(1017));
 /**
  * The code to exit an action
  */
@@ -592,8 +673,8 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 // We use any as a valid input type
 /* eslint-disable @typescript-eslint/no-explicit-any */
-const fs = __importStar(__nccwpck_require__(5747));
-const os = __importStar(__nccwpck_require__(2087));
+const fs = __importStar(__nccwpck_require__(7147));
+const os = __importStar(__nccwpck_require__(2037));
 const utils_1 = __nccwpck_require__(5278);
 function issueCommand(command, message) {
     const filePath = process.env[`GITHUB_${command}`];
@@ -645,8 +726,8 @@ exports.toCommandValue = toCommandValue;
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.Context = void 0;
-const fs_1 = __nccwpck_require__(5747);
-const os_1 = __nccwpck_require__(2087);
+const fs_1 = __nccwpck_require__(7147);
+const os_1 = __nccwpck_require__(2037);
 class Context {
     /**
      * Hydrate the context from the environment
@@ -855,8 +936,8 @@ exports.getOctokitOptions = getOctokitOptions;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const http = __nccwpck_require__(8605);
-const https = __nccwpck_require__(7211);
+const http = __nccwpck_require__(3685);
+const https = __nccwpck_require__(5687);
 const pm = __nccwpck_require__(6443);
 let tunnel;
 var HttpCodes;
@@ -4358,9 +4439,9 @@ exports.Deprecation = Deprecation;
 
 
 const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(5622)
-const mkdirsSync = __nccwpck_require__(2915).mkdirsSync
-const utimesMillisSync = __nccwpck_require__(2548).utimesMillisSync
+const path = __nccwpck_require__(1017)
+const mkdirsSync = (__nccwpck_require__(8605).mkdirsSync)
+const utimesMillisSync = (__nccwpck_require__(2548).utimesMillisSync)
 const stat = __nccwpck_require__(3901)
 
 function copySync (src, dest, opts) {
@@ -4545,10 +4626,10 @@ module.exports = {
 
 
 const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(5622)
-const mkdirs = __nccwpck_require__(2915).mkdirs
-const pathExists = __nccwpck_require__(3835).pathExists
-const utimesMillis = __nccwpck_require__(2548).utimesMillis
+const path = __nccwpck_require__(1017)
+const mkdirs = (__nccwpck_require__(8605).mkdirs)
+const pathExists = (__nccwpck_require__(3835).pathExists)
+const utimesMillis = (__nccwpck_require__(2548).utimesMillis)
 const stat = __nccwpck_require__(3901)
 
 function copy (src, dest, opts, cb) {
@@ -4784,7 +4865,7 @@ module.exports = copy
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromCallback
+const u = (__nccwpck_require__(9046).fromCallback)
 module.exports = {
   copy: u(__nccwpck_require__(8834))
 }
@@ -4798,10 +4879,10 @@ module.exports = {
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromCallback
+const u = (__nccwpck_require__(9046).fromCallback)
 const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(5622)
-const mkdir = __nccwpck_require__(2915)
+const path = __nccwpck_require__(1017)
+const mkdir = __nccwpck_require__(8605)
 const remove = __nccwpck_require__(7357)
 
 const emptyDir = u(function emptyDir (dir, callback) {
@@ -4854,10 +4935,10 @@ module.exports = {
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromCallback
-const path = __nccwpck_require__(5622)
+const u = (__nccwpck_require__(9046).fromCallback)
+const path = __nccwpck_require__(1017)
 const fs = __nccwpck_require__(7758)
-const mkdir = __nccwpck_require__(2915)
+const mkdir = __nccwpck_require__(8605)
 
 function createFile (file, callback) {
   function makeFile () {
@@ -4962,11 +5043,11 @@ module.exports = {
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromCallback
-const path = __nccwpck_require__(5622)
+const u = (__nccwpck_require__(9046).fromCallback)
+const path = __nccwpck_require__(1017)
 const fs = __nccwpck_require__(7758)
-const mkdir = __nccwpck_require__(2915)
-const pathExists = __nccwpck_require__(3835).pathExists
+const mkdir = __nccwpck_require__(8605)
+const pathExists = (__nccwpck_require__(3835).pathExists)
 
 function createLink (srcpath, dstpath, callback) {
   function makeLink (srcpath, dstpath) {
@@ -5031,9 +5112,9 @@ module.exports = {
 "use strict";
 
 
-const path = __nccwpck_require__(5622)
+const path = __nccwpck_require__(1017)
 const fs = __nccwpck_require__(7758)
-const pathExists = __nccwpck_require__(3835).pathExists
+const pathExists = (__nccwpck_require__(3835).pathExists)
 
 /**
  * Function that returns two types of paths, one relative to symlink, and one
@@ -5177,10 +5258,10 @@ module.exports = {
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromCallback
-const path = __nccwpck_require__(5622)
+const u = (__nccwpck_require__(9046).fromCallback)
+const path = __nccwpck_require__(1017)
 const fs = __nccwpck_require__(7758)
-const _mkdirs = __nccwpck_require__(2915)
+const _mkdirs = __nccwpck_require__(8605)
 const mkdirs = _mkdirs.mkdirs
 const mkdirsSync = _mkdirs.mkdirsSync
 
@@ -5192,7 +5273,7 @@ const _symlinkType = __nccwpck_require__(8254)
 const symlinkType = _symlinkType.symlinkType
 const symlinkTypeSync = _symlinkType.symlinkTypeSync
 
-const pathExists = __nccwpck_require__(3835).pathExists
+const pathExists = (__nccwpck_require__(3835).pathExists)
 
 function createSymlink (srcpath, dstpath, type, callback) {
   callback = (typeof type === 'function') ? type : callback
@@ -5249,7 +5330,7 @@ module.exports = {
 
 // This is adapted from https://github.com/normalize/mz
 // Copyright (c) 2014-2016 Jonathan Ong me@jongleberry.com and Contributors
-const u = __nccwpck_require__(9046).fromCallback
+const u = (__nccwpck_require__(9046).fromCallback)
 const fs = __nccwpck_require__(7758)
 
 const api = [
@@ -5395,7 +5476,7 @@ module.exports = {
   ...__nccwpck_require__(6970),
   ...__nccwpck_require__(55),
   ...__nccwpck_require__(213),
-  ...__nccwpck_require__(2915),
+  ...__nccwpck_require__(8605),
   ...__nccwpck_require__(9665),
   ...__nccwpck_require__(1497),
   ...__nccwpck_require__(6570),
@@ -5405,7 +5486,7 @@ module.exports = {
 
 // Export fs.promises as a getter property so that we don't trigger
 // ExperimentalWarning before fs.promises is actually accessed.
-const fs = __nccwpck_require__(5747)
+const fs = __nccwpck_require__(7147)
 if (Object.getOwnPropertyDescriptor(fs, 'promises')) {
   Object.defineProperty(module.exports, "promises", ({
     get () { return fs.promises }
@@ -5421,7 +5502,7 @@ if (Object.getOwnPropertyDescriptor(fs, 'promises')) {
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromPromise
+const u = (__nccwpck_require__(9046).fromPromise)
 const jsonFile = __nccwpck_require__(8970)
 
 jsonFile.outputJson = u(__nccwpck_require__(531))
@@ -5498,12 +5579,12 @@ module.exports = outputJson
 
 /***/ }),
 
-/***/ 2915:
+/***/ 8605:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
-const u = __nccwpck_require__(9046).fromPromise
+const u = (__nccwpck_require__(9046).fromPromise)
 const { makeDir: _makeDir, makeDirSync } = __nccwpck_require__(2751)
 const makeDir = u(_makeDir)
 
@@ -5531,7 +5612,7 @@ module.exports = {
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 const fs = __nccwpck_require__(1176)
-const path = __nccwpck_require__(5622)
+const path = __nccwpck_require__(1017)
 const atLeastNode = __nccwpck_require__(5995)
 
 const useNativeRecursiveOption = atLeastNode('10.12.0')
@@ -5689,10 +5770,10 @@ module.exports = {
 
 
 const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(5622)
-const copySync = __nccwpck_require__(1135).copySync
-const removeSync = __nccwpck_require__(7357).removeSync
-const mkdirpSync = __nccwpck_require__(2915).mkdirpSync
+const path = __nccwpck_require__(1017)
+const copySync = (__nccwpck_require__(1135).copySync)
+const removeSync = (__nccwpck_require__(7357).removeSync)
+const mkdirpSync = (__nccwpck_require__(8605).mkdirpSync)
 const stat = __nccwpck_require__(3901)
 
 function moveSync (src, dest, opts) {
@@ -5743,7 +5824,7 @@ module.exports = moveSync
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromCallback
+const u = (__nccwpck_require__(9046).fromCallback)
 module.exports = {
   move: u(__nccwpck_require__(2231))
 }
@@ -5758,11 +5839,11 @@ module.exports = {
 
 
 const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(5622)
-const copy = __nccwpck_require__(1335).copy
-const remove = __nccwpck_require__(7357).remove
-const mkdirp = __nccwpck_require__(2915).mkdirp
-const pathExists = __nccwpck_require__(3835).pathExists
+const path = __nccwpck_require__(1017)
+const copy = (__nccwpck_require__(1335).copy)
+const remove = (__nccwpck_require__(7357).remove)
+const mkdirp = (__nccwpck_require__(8605).mkdirp)
+const pathExists = (__nccwpck_require__(3835).pathExists)
 const stat = __nccwpck_require__(3901)
 
 function move (src, dest, opts, cb) {
@@ -5830,11 +5911,11 @@ module.exports = move
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromCallback
+const u = (__nccwpck_require__(9046).fromCallback)
 const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(5622)
-const mkdir = __nccwpck_require__(2915)
-const pathExists = __nccwpck_require__(3835).pathExists
+const path = __nccwpck_require__(1017)
+const mkdir = __nccwpck_require__(8605)
+const pathExists = (__nccwpck_require__(3835).pathExists)
 
 function outputFile (file, data, encoding, callback) {
   if (typeof encoding === 'function') {
@@ -5877,7 +5958,7 @@ module.exports = {
 
 "use strict";
 
-const u = __nccwpck_require__(9046).fromPromise
+const u = (__nccwpck_require__(9046).fromPromise)
 const fs = __nccwpck_require__(1176)
 
 function pathExists (path) {
@@ -5898,8 +5979,8 @@ module.exports = {
 "use strict";
 
 
-const u = __nccwpck_require__(9046).fromCallback
-const rimraf = __nccwpck_require__(7247)
+const u = (__nccwpck_require__(9046).fromCallback)
+const rimraf = __nccwpck_require__(8761)
 
 module.exports = {
   remove: u(rimraf),
@@ -5909,15 +5990,15 @@ module.exports = {
 
 /***/ }),
 
-/***/ 7247:
+/***/ 8761:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
 "use strict";
 
 
 const fs = __nccwpck_require__(7758)
-const path = __nccwpck_require__(5622)
-const assert = __nccwpck_require__(2357)
+const path = __nccwpck_require__(1017)
+const assert = __nccwpck_require__(9491)
 
 const isWindows = (process.platform === 'win32')
 
@@ -6226,8 +6307,8 @@ rimraf.sync = rimrafSync
 
 
 const fs = __nccwpck_require__(1176)
-const path = __nccwpck_require__(5622)
-const util = __nccwpck_require__(1669)
+const path = __nccwpck_require__(1017)
+const util = __nccwpck_require__(3837)
 const atLeastNode = __nccwpck_require__(5995)
 
 const nodeSupportsBigInt = atLeastNode('10.5.0')
@@ -6434,12 +6515,12 @@ function clone (obj) {
 /***/ 7758:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var fs = __nccwpck_require__(5747)
+var fs = __nccwpck_require__(7147)
 var polyfills = __nccwpck_require__(263)
 var legacy = __nccwpck_require__(3086)
 var clone = __nccwpck_require__(7356)
 
-var util = __nccwpck_require__(1669)
+var util = __nccwpck_require__(3837)
 
 /* istanbul ignore next - node 0.x polyfill */
 var gracefulQueue
@@ -6520,7 +6601,7 @@ if (!fs[gracefulQueue]) {
   if (/\bgfs4\b/i.test(process.env.NODE_DEBUG || '')) {
     process.on('exit', function() {
       debug(fs[gracefulQueue])
-      __nccwpck_require__(2357).equal(fs[gracefulQueue].length, 0)
+      __nccwpck_require__(9491).equal(fs[gracefulQueue].length, 0)
     })
   }
 }
@@ -6814,7 +6895,7 @@ function retry () {
 /***/ 3086:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var Stream = __nccwpck_require__(2413).Stream
+var Stream = (__nccwpck_require__(2781).Stream)
 
 module.exports = legacy
 
@@ -6939,7 +7020,7 @@ function legacy (fs) {
 /***/ 263:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var constants = __nccwpck_require__(7619)
+var constants = __nccwpck_require__(2057)
 
 var origCwd = process.cwd
 var cwd = null
@@ -7296,7 +7377,7 @@ let _fs
 try {
   _fs = __nccwpck_require__(7758)
 } catch (_) {
-  _fs = __nccwpck_require__(5747)
+  _fs = __nccwpck_require__(7147)
 }
 const universalify = __nccwpck_require__(9046)
 const { stringify, stripBom } = __nccwpck_require__(5902)
@@ -7413,7 +7494,7 @@ minimatch.Minimatch = Minimatch
 
 var path = { sep: '/' }
 try {
-  path = __nccwpck_require__(5622)
+  path = __nccwpck_require__(1017)
 } catch (er) {}
 
 var GLOBSTAR = minimatch.GLOBSTAR = Minimatch.GLOBSTAR = {}
@@ -8345,11 +8426,11 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
-var Stream = _interopDefault(__nccwpck_require__(2413));
-var http = _interopDefault(__nccwpck_require__(8605));
-var Url = _interopDefault(__nccwpck_require__(8835));
-var https = _interopDefault(__nccwpck_require__(7211));
-var zlib = _interopDefault(__nccwpck_require__(8761));
+var Stream = _interopDefault(__nccwpck_require__(2781));
+var http = _interopDefault(__nccwpck_require__(3685));
+var Url = _interopDefault(__nccwpck_require__(7310));
+var https = _interopDefault(__nccwpck_require__(5687));
+var zlib = _interopDefault(__nccwpck_require__(9796));
 
 // Based on https://github.com/tmpvar/jsdom/blob/aa85b2abf07766ff7bf5c1f6daafb3726f2f2db5/lib/jsdom/living/blob.js
 
@@ -8500,7 +8581,7 @@ FetchError.prototype.name = 'FetchError';
 
 let convert;
 try {
-	convert = __nccwpck_require__(2877).convert;
+	convert = (__nccwpck_require__(2877).convert);
 } catch (e) {}
 
 const INTERNALS = Symbol('Body internals');
@@ -9983,7 +10064,7 @@ fetch.Promise = global.Promise;
 
 module.exports = exports = fetch;
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.default = exports;
+exports["default"] = exports;
 exports.Headers = Headers;
 exports.Request = Request;
 exports.Response = Response;
@@ -10044,8 +10125,8 @@ function onceStrict (fn) {
 /***/ 6715:
 /***/ ((module, __unused_webpack_exports, __nccwpck_require__) => {
 
-var fs = __nccwpck_require__(5747);
-var p = __nccwpck_require__(5622);
+var fs = __nccwpck_require__(7147);
+var p = __nccwpck_require__(1017);
 var minimatch = __nccwpck_require__(3973);
 
 function patternMatcher(pattern) {
@@ -10158,13 +10239,13 @@ module.exports = __nccwpck_require__(4219);
 "use strict";
 
 
-var net = __nccwpck_require__(1631);
-var tls = __nccwpck_require__(4016);
-var http = __nccwpck_require__(8605);
-var https = __nccwpck_require__(7211);
-var events = __nccwpck_require__(8614);
-var assert = __nccwpck_require__(2357);
-var util = __nccwpck_require__(1669);
+var net = __nccwpck_require__(1808);
+var tls = __nccwpck_require__(4404);
+var http = __nccwpck_require__(3685);
+var https = __nccwpck_require__(5687);
+var events = __nccwpck_require__(2361);
+var assert = __nccwpck_require__(9491);
+var util = __nccwpck_require__(3837);
 
 
 exports.httpOverHttp = httpOverHttp;
@@ -10530,123 +10611,131 @@ module.exports = eval("require")("encoding");
 
 /***/ }),
 
-/***/ 2357:
+/***/ 9491:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("assert");;
+module.exports = require("assert");
 
 /***/ }),
 
-/***/ 7619:
+/***/ 2081:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("constants");;
+module.exports = require("child_process");
 
 /***/ }),
 
-/***/ 6417:
+/***/ 2057:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("crypto");;
+module.exports = require("constants");
 
 /***/ }),
 
-/***/ 8614:
+/***/ 6113:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("events");;
+module.exports = require("crypto");
 
 /***/ }),
 
-/***/ 5747:
+/***/ 2361:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("fs");;
+module.exports = require("events");
 
 /***/ }),
 
-/***/ 8605:
+/***/ 7147:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("http");;
+module.exports = require("fs");
 
 /***/ }),
 
-/***/ 7211:
+/***/ 3685:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("https");;
+module.exports = require("http");
 
 /***/ }),
 
-/***/ 1631:
+/***/ 5687:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("net");;
+module.exports = require("https");
 
 /***/ }),
 
-/***/ 2087:
+/***/ 1808:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("os");;
+module.exports = require("net");
 
 /***/ }),
 
-/***/ 5622:
+/***/ 2037:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("path");;
+module.exports = require("os");
 
 /***/ }),
 
-/***/ 2413:
+/***/ 1017:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("stream");;
+module.exports = require("path");
 
 /***/ }),
 
-/***/ 4016:
+/***/ 2781:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("tls");;
+module.exports = require("stream");
 
 /***/ }),
 
-/***/ 8835:
+/***/ 4404:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("url");;
+module.exports = require("tls");
 
 /***/ }),
 
-/***/ 1669:
+/***/ 7310:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("util");;
+module.exports = require("url");
 
 /***/ }),
 
-/***/ 8761:
+/***/ 3837:
 /***/ ((module) => {
 
 "use strict";
-module.exports = require("zlib");;
+module.exports = require("util");
+
+/***/ }),
+
+/***/ 9796:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("zlib");
 
 /***/ })
 
@@ -10658,8 +10747,9 @@ module.exports = require("zlib");;
 /******/ 	// The require function
 /******/ 	function __nccwpck_require__(moduleId) {
 /******/ 		// Check if module is in cache
-/******/ 		if(__webpack_module_cache__[moduleId]) {
-/******/ 			return __webpack_module_cache__[moduleId].exports;
+/******/ 		var cachedModule = __webpack_module_cache__[moduleId];
+/******/ 		if (cachedModule !== undefined) {
+/******/ 			return cachedModule.exports;
 /******/ 		}
 /******/ 		// Create a new module (and put it into the cache)
 /******/ 		var module = __webpack_module_cache__[moduleId] = {
@@ -10684,11 +10774,16 @@ module.exports = require("zlib");;
 /************************************************************************/
 /******/ 	/* webpack/runtime/compat */
 /******/ 	
-/******/ 	__nccwpck_require__.ab = __dirname + "/";/************************************************************************/
-/******/ 	// module exports must be returned from runtime so entry inlining is disabled
+/******/ 	if (typeof __nccwpck_require__ !== 'undefined') __nccwpck_require__.ab = __dirname + "/";
+/******/ 	
+/************************************************************************/
+/******/ 	
 /******/ 	// startup
 /******/ 	// Load entry module and return exports
-/******/ 	return __nccwpck_require__(3109);
+/******/ 	// This entry module is referenced by other modules so it can't be inlined
+/******/ 	var __webpack_exports__ = __nccwpck_require__(3109);
+/******/ 	module.exports = __webpack_exports__;
+/******/ 	
 /******/ })()
 ;
 //# sourceMappingURL=index.js.map

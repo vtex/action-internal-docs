@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc && ncc build --source-map --license licenses.txt",
     "lint": "eslint --ext ts,js .",
-    "test": "jest"
+    "test": "jest --passWithNoTests"
   },
   "repository": {
     "type": "git",

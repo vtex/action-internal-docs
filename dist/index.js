@@ -53,8 +53,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const crypto_1 = __importDefault(__nccwpck_require__(6113));
-const child_process_1 = __nccwpck_require__(2081);
+const node_crypto_1 = __importDefault(__nccwpck_require__(6005));
+const node_child_process_1 = __nccwpck_require__(7718);
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
 const fs = __importStar(__nccwpck_require__(5630));
@@ -67,7 +67,7 @@ function run() {
         try {
             const ref = core.getInput('ref');
             if (ref) {
-                child_process_1.execSync(`git checkout ${ref}`);
+                node_child_process_1.execSync(`git checkout ${ref}`);
             }
             if (!fs.existsSync(constants_1.DOCS_FOLDER)) {
                 core.info(`Folder ${constants_1.DOCS_FOLDER} does not exist, exiting.`);
@@ -90,7 +90,7 @@ function run() {
             const repoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
             const currentDate = new Date().valueOf().toString();
             const random = Math.random().toString();
-            const hash = crypto_1.default
+            const hash = node_crypto_1.default
                 .createHash('sha1')
                 .update(currentDate + random)
                 .digest('hex');
@@ -10619,27 +10619,11 @@ module.exports = require("assert");
 
 /***/ }),
 
-/***/ 2081:
-/***/ ((module) => {
-
-"use strict";
-module.exports = require("child_process");
-
-/***/ }),
-
 /***/ 2057:
 /***/ ((module) => {
 
 "use strict";
 module.exports = require("constants");
-
-/***/ }),
-
-/***/ 6113:
-/***/ ((module) => {
-
-"use strict";
-module.exports = require("crypto");
 
 /***/ }),
 
@@ -10680,6 +10664,22 @@ module.exports = require("https");
 
 "use strict";
 module.exports = require("net");
+
+/***/ }),
+
+/***/ 7718:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:child_process");
+
+/***/ }),
+
+/***/ 6005:
+/***/ ((module) => {
+
+"use strict";
+module.exports = require("node:crypto");
 
 /***/ }),
 

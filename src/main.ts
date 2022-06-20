@@ -1,5 +1,3 @@
-import crypto from 'node:crypto'
-
 import * as github from '@actions/github'
 import * as core from '@actions/core'
 import * as fs from 'fs-extra'
@@ -55,15 +53,10 @@ async function run(): Promise<void> {
 
     const autoMergeEnabled = core.getInput('auto-merge')
 
-    const currentDate = new Date().valueOf().toString()
-    const random = Math.random().toString()
+    const { owner: currentOwner, repo: currentRepo } = github.context.repo
+    const ownRepoCommitSha = github.context.sha.slice(0, 8)
 
-    const hash = crypto
-      .createHash('sha1')
-      .update(currentDate + random)
-      .digest('hex')
-
-    const branchToPush = `docs-${hash}`
+    const branchToPush = `docs-${currentOwner}-${currentRepo}-${ownRepoCommitSha}`
 
     const kit = new TechDocsKit(
       github.getOctokit(repoToken),
@@ -126,8 +119,6 @@ async function run(): Promise<void> {
       branch: branchToPush,
       commitSha: newCommit.sha,
     })
-
-    const { owner: currentOwner, repo: currentRepo } = github.context.repo
 
     core.debug('Creating pull-request for branch')
 

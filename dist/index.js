@@ -53,7 +53,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-const node_crypto_1 = __importDefault(__nccwpck_require__(6005));
 const github = __importStar(__nccwpck_require__(5438));
 const core = __importStar(__nccwpck_require__(2186));
 const fs = __importStar(__nccwpck_require__(5630));
@@ -91,13 +90,9 @@ function run() {
             const repoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
             const repoBranch = (_c = core.getInput('repo-branch')) !== null && _c !== void 0 ? _c : constants_1.INTERNAL_DOCS_DEFAULT_BRANCH;
             const autoMergeEnabled = core.getInput('auto-merge');
-            const currentDate = new Date().valueOf().toString();
-            const random = Math.random().toString();
-            const hash = node_crypto_1.default
-                .createHash('sha1')
-                .update(currentDate + random)
-                .digest('hex');
-            const branchToPush = `docs-${hash}`;
+            const { owner: currentOwner, repo: currentRepo } = github.context.repo;
+            const ownRepoCommitSha = github.context.sha.slice(0, 8);
+            const branchToPush = `docs-${currentOwner}-${currentRepo}-${ownRepoCommitSha}`;
             const kit = new octokit_1.TechDocsKit(github.getOctokit(repoToken), repoOwner, repoName);
             const paths = files.map((file) => `docs/${product}/${file.name.replace('docs/', '')}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
@@ -133,7 +128,6 @@ function run() {
                 branch: branchToPush,
                 commitSha: newCommit.sha,
             });
-            const { owner: currentOwner, repo: currentRepo } = github.context.repo;
             core.debug('Creating pull-request for branch');
             const pull = yield kit.createPullRequest({
                 title: `Docs sync (${currentOwner}/${currentRepo})`,
@@ -11848,14 +11842,6 @@ module.exports = require("https");
 
 "use strict";
 module.exports = require("net");
-
-/***/ }),
-
-/***/ 6005:
-/***/ ((module) => {
-
-"use strict";
-module.exports = require("node:crypto");
 
 /***/ }),
 

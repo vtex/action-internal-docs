@@ -46,23 +46,25 @@ async function run(): Promise<void> {
     const repoToken = core.getInput('repo-token')
     const product = core.getInput('docs-product', { required: true })
 
-    const repoOwner = core.getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
-    const repoName = core.getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
-    const repoBranch =
+    const upstreamRepoOwner =
+      core.getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
+
+    const upstreamRepoName =
+      core.getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
+
+    const upstreamRepoBranch =
       core.getInput('repo-branch') ?? INTERNAL_DOCS_DEFAULT_BRANCH
 
     const autoMergeEnabled = core.getInput('auto-merge')
 
-    const { owner: currentOwner, repo: currentRepo } = github.context.repo
-    const ownRepoCommitSha = github.context.sha.slice(0, 8)
-
-    const branchToPush = `docs-${currentOwner}-${currentRepo}-${ownRepoCommitSha}`
-
-    const kit = new TechDocsKit(
-      github.getOctokit(repoToken),
-      repoOwner,
-      repoName
-    )
+    const kit = new TechDocsKit({
+      client: github.getOctokit(repoToken),
+      upstreamRepo: {
+        owner: upstreamRepoOwner,
+        repo: upstreamRepoName,
+      },
+      ownRepo: github.context.repo,
+    })
 
     const paths = files.map(
       (file) => `docs/${product}/${file.name.replace('docs/', '')}`
@@ -80,10 +82,10 @@ async function run(): Promise<void> {
       })
     )
 
-    core.debug(`Getting current commit for branch ${repoBranch}`)
+    core.debug(`Getting current commit for branch ${upstreamRepoBranch}`)
 
     const currentCommit = await kit.getCurrentCommit({
-      branch: repoBranch,
+      branch: upstreamRepoBranch,
     })
 
     core.debug(
@@ -97,6 +99,8 @@ async function run(): Promise<void> {
       paths,
       parentTreeSha: currentCommit.treeSha,
     })
+
+    const branchToPush = kit.getNewUpstreamBranchName(github.context.sha)
 
     core.debug(`Creating branch ${branchToPush}`)
 
@@ -123,15 +127,15 @@ async function run(): Promise<void> {
     core.debug('Creating pull-request for branch')
 
     const pull = await kit.createPullRequest({
-      title: `Docs sync (${currentOwner}/${currentRepo})`,
+      title: `Docs sync (${kit.ownRepoOwner}/${kit.ownRepoName})`,
       head: branchToPush,
-      base: repoBranch,
+      base: upstreamRepoBranch,
       body: `
 Documentation synchronization from [GitHub action]
 
 This update is refers to the following commit:
 
-https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
+https://github.com/${kit.ownRepoOwner}/${kit.ownRepoName}/commit/${github.context.sha}
 
 [GitHub action]: http://github.com/vtex/action-internal-docs
 `.trim(),
@@ -154,7 +158,7 @@ https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
       await kit.closePullRequestAndDeleteBranch({
         pullNumber: pull.number,
         head: branchToPush,
-        reason: `Failed to merge pull-request to branch "${repoBranch}"`,
+        reason: `Failed to merge pull-request to branch "${upstreamRepoBranch}"`,
       })
     }
   } catch (error) {

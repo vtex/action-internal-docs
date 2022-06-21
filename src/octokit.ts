@@ -4,13 +4,47 @@ import type { RestEndpointMethodTypes } from '@octokit/rest'
 type Octo = InstanceType<typeof GitHub>
 
 const DEFAULT_BRANCH = 'main'
+const SHORT_SHA_LENGTH = 8
+
+interface Repo {
+  owner: string
+  repo: string
+}
 
 export class TechDocsKit {
-  constructor(
-    private client: Octo,
-    private owner: string,
-    private repo: string
-  ) {}
+  private client: Octo
+  private upstreamRepo: Repo
+  private ownRepo: Repo
+
+  constructor({
+    client,
+    upstreamRepo,
+    ownRepo,
+  }: {
+    client: Octo
+    upstreamRepo: Repo
+    ownRepo: Repo
+  }) {
+    this.client = client
+    this.upstreamRepo = upstreamRepo
+    this.ownRepo = ownRepo
+  }
+
+  public get ownRepoOwner() {
+    return this.ownRepo.owner
+  }
+
+  public get ownRepoName() {
+    return this.ownRepo.repo
+  }
+
+  public getNewUpstreamBranchName(sha1: string) {
+    const { owner, repo } = this.ownRepo
+
+    const shortSha1 = sha1.slice(0, SHORT_SHA_LENGTH)
+
+    return `docs-${owner}-${repo}-${shortSha1}`
+  }
 
   public async getCurrentCommit({
     branch = DEFAULT_BRANCH,
@@ -18,15 +52,13 @@ export class TechDocsKit {
     branch?: string
   }) {
     const { data: refData } = await this.client.git.getRef({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       ref: `heads/${branch}`,
     })
 
     const commitSha = refData.object.sha
     const { data: commitData } = await this.client.git.getCommit({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       commit_sha: commitSha,
     })
 
@@ -46,8 +78,7 @@ export class TechDocsKit {
   ) {
     // const content = await getFileAsUTF8(filePath)
     const blobData = await this.client.git.createBlob({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       content,
       encoding,
     })
@@ -81,8 +112,7 @@ export class TechDocsKit {
     }))
 
     const { data: treeData } = await this.client.git.createTree({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       tree,
       base_tree: parentTreeSha,
     })
@@ -98,8 +128,7 @@ export class TechDocsKit {
     parentSha: string
   }) {
     const response = await this.client.git.createRef({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       ref: `refs/heads/${branch}`,
       sha: parentSha,
     })
@@ -117,8 +146,7 @@ export class TechDocsKit {
     currentCommitSha: string
   }) {
     const { data: commitData } = await this.client.git.createCommit({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       message,
       tree: treeSha,
       parents: [currentCommitSha],
@@ -135,8 +163,7 @@ export class TechDocsKit {
     commitSha: string
   }) {
     return this.client.git.updateRef({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       ref: `heads/${branch}`,
       sha: commitSha,
     })
@@ -144,8 +171,7 @@ export class TechDocsKit {
 
   public async mergePullRequest({ pullNumber }: { pullNumber: number }) {
     const response = await this.client.pulls.merge({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       pull_number: pullNumber,
       merge_method: 'rebase',
     })
@@ -165,8 +191,7 @@ export class TechDocsKit {
     base: string
   }) {
     const response = await this.client.pulls.create({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       title,
       head,
       base,
@@ -186,8 +211,7 @@ export class TechDocsKit {
     reason: string
   }) {
     await this.client.issues.createComment({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       issue_number: pullNumber,
       body: `
 Closing pull request, reason: ${reason}
@@ -195,15 +219,13 @@ Closing pull request, reason: ${reason}
     })
 
     await this.client.pulls.update({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       pull_number: pullNumber,
       state: 'closed',
     })
 
     await this.client.git.deleteRef({
-      owner: this.owner,
-      repo: this.repo,
+      ...this.upstreamRepo,
       ref: `head/${head}`,
     })
   }

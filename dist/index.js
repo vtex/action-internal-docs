@@ -86,14 +86,18 @@ function run() {
             });
             const repoToken = core.getInput('repo-token');
             const product = core.getInput('docs-product', { required: true });
-            const repoOwner = (_a = core.getInput('repo-owner')) !== null && _a !== void 0 ? _a : constants_1.INTERNAL_DOCS_REPO_OWNER;
-            const repoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
-            const repoBranch = (_c = core.getInput('repo-branch')) !== null && _c !== void 0 ? _c : constants_1.INTERNAL_DOCS_DEFAULT_BRANCH;
+            const upstreamRepoOwner = (_a = core.getInput('repo-owner')) !== null && _a !== void 0 ? _a : constants_1.INTERNAL_DOCS_REPO_OWNER;
+            const upstreamRepoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
+            const upstreamRepoBranch = (_c = core.getInput('repo-branch')) !== null && _c !== void 0 ? _c : constants_1.INTERNAL_DOCS_DEFAULT_BRANCH;
             const autoMergeEnabled = core.getInput('auto-merge');
-            const { owner: currentOwner, repo: currentRepo } = github.context.repo;
-            const ownRepoCommitSha = github.context.sha.slice(0, 8);
-            const branchToPush = `docs-${currentOwner}-${currentRepo}-${ownRepoCommitSha}`;
-            const kit = new octokit_1.TechDocsKit(github.getOctokit(repoToken), repoOwner, repoName);
+            const kit = new octokit_1.TechDocsKit({
+                client: github.getOctokit(repoToken),
+                upstreamRepo: {
+                    owner: upstreamRepoOwner,
+                    repo: upstreamRepoName,
+                },
+                ownRepo: github.context.repo,
+            });
             const paths = files.map((file) => `docs/${product}/${file.name.replace('docs/', '')}`);
             const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
                 const { content } = file;
@@ -102,9 +106,9 @@ function run() {
                 }
                 return kit.createBlobForFile({ content });
             })));
-            core.debug(`Getting current commit for branch ${repoBranch}`);
+            core.debug(`Getting current commit for branch ${upstreamRepoBranch}`);
             const currentCommit = yield kit.getCurrentCommit({
-                branch: repoBranch,
+                branch: upstreamRepoBranch,
             });
             core.debug(`Creating tree for paths with parent ${currentCommit.treeSha}\n${paths.join('\n')}`);
             const newTree = yield kit.createNewTree({
@@ -112,6 +116,7 @@ function run() {
                 paths,
                 parentTreeSha: currentCommit.treeSha,
             });
+            const branchToPush = kit.getNewUpstreamBranchName(github.context.sha);
             core.debug(`Creating branch ${branchToPush}`);
             yield kit.createBranch({
                 branch: branchToPush,
@@ -130,15 +135,15 @@ function run() {
             });
             core.debug('Creating pull-request for branch');
             const pull = yield kit.createPullRequest({
-                title: `Docs sync (${currentOwner}/${currentRepo})`,
+                title: `Docs sync (${kit.ownRepoOwner}/${kit.ownRepoName})`,
                 head: branchToPush,
-                base: repoBranch,
+                base: upstreamRepoBranch,
                 body: `
 Documentation synchronization from [GitHub action]
 
 This update is refers to the following commit:
 
-https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
+https://github.com/${kit.ownRepoOwner}/${kit.ownRepoName}/commit/${github.context.sha}
 
 [GitHub action]: http://github.com/vtex/action-internal-docs
 `.trim(),
@@ -160,7 +165,7 @@ https://github.com/${currentOwner}/${currentRepo}/commit/${github.context.sha}
                 yield kit.closePullRequestAndDeleteBranch({
                     pullNumber: pull.number,
                     head: branchToPush,
-                    reason: `Failed to merge pull-request to branch "${repoBranch}"`,
+                    reason: `Failed to merge pull-request to branch "${upstreamRepoBranch}"`,
                 });
             }
         }
@@ -194,25 +199,29 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TechDocsKit = void 0;
 const DEFAULT_BRANCH = 'main';
+const SHORT_SHA_LENGTH = 8;
 class TechDocsKit {
-    constructor(client, owner, repo) {
+    constructor({ client, upstreamRepo, ownRepo, }) {
         this.client = client;
-        this.owner = owner;
-        this.repo = repo;
+        this.upstreamRepo = upstreamRepo;
+        this.ownRepo = ownRepo;
+    }
+    get ownRepoOwner() {
+        return this.ownRepo.owner;
+    }
+    get ownRepoName() {
+        return this.ownRepo.repo;
+    }
+    getNewUpstreamBranchName(sha1) {
+        const { owner, repo } = this.ownRepo;
+        const shortSha1 = sha1.slice(0, SHORT_SHA_LENGTH);
+        return `docs-${owner}-${repo}-${shortSha1}`;
     }
     getCurrentCommit({ branch = DEFAULT_BRANCH, }) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { data: refData } = yield this.client.git.getRef({
-                owner: this.owner,
-                repo: this.repo,
-                ref: `heads/${branch}`,
-            });
+            const { data: refData } = yield this.client.git.getRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `heads/${branch}` }));
             const commitSha = refData.object.sha;
-            const { data: commitData } = yield this.client.git.getCommit({
-                owner: this.owner,
-                repo: this.repo,
-                commit_sha: commitSha,
-            });
+            const { data: commitData } = yield this.client.git.getCommit(Object.assign(Object.assign({}, this.upstreamRepo), { commit_sha: commitSha }));
             return {
                 commitSha,
                 treeSha: commitData.tree.sha,
@@ -222,12 +231,8 @@ class TechDocsKit {
     createBlobForFile({ content, }, encoding = 'utf-8') {
         return __awaiter(this, void 0, void 0, function* () {
             // const content = await getFileAsUTF8(filePath)
-            const blobData = yield this.client.git.createBlob({
-                owner: this.owner,
-                repo: this.repo,
-                content,
-                encoding,
-            });
+            const blobData = yield this.client.git.createBlob(Object.assign(Object.assign({}, this.upstreamRepo), { content,
+                encoding }));
             return blobData.data;
         });
     }
@@ -244,93 +249,49 @@ class TechDocsKit {
                 type,
                 sha,
             }));
-            const { data: treeData } = yield this.client.git.createTree({
-                owner: this.owner,
-                repo: this.repo,
-                tree,
-                base_tree: parentTreeSha,
-            });
+            const { data: treeData } = yield this.client.git.createTree(Object.assign(Object.assign({}, this.upstreamRepo), { tree, base_tree: parentTreeSha }));
             return treeData;
         });
     }
     createBranch({ branch, parentSha, }) {
         return __awaiter(this, void 0, void 0, function* () {
-            const response = yield this.client.git.createRef({
-                owner: this.owner,
-                repo: this.repo,
-                ref: `refs/heads/${branch}`,
-                sha: parentSha,
-            });
+            const response = yield this.client.git.createRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `refs/heads/${branch}`, sha: parentSha }));
             return response.data.object.sha;
         });
     }
     createNewCommit({ message = 'Update to course', treeSha, currentCommitSha, }) {
         return __awaiter(this, void 0, void 0, function* () {
-            const { data: commitData } = yield this.client.git.createCommit({
-                owner: this.owner,
-                repo: this.repo,
-                message,
-                tree: treeSha,
-                parents: [currentCommitSha],
-            });
+            const { data: commitData } = yield this.client.git.createCommit(Object.assign(Object.assign({}, this.upstreamRepo), { message, tree: treeSha, parents: [currentCommitSha] }));
             return commitData;
         });
     }
     setBranchRefToCommit({ branch = DEFAULT_BRANCH, commitSha, }) {
         return __awaiter(this, void 0, void 0, function* () {
-            return this.client.git.updateRef({
-                owner: this.owner,
-                repo: this.repo,
-                ref: `heads/${branch}`,
-                sha: commitSha,
-            });
+            return this.client.git.updateRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `heads/${branch}`, sha: commitSha }));
         });
     }
     mergePullRequest({ pullNumber }) {
         return __awaiter(this, void 0, void 0, function* () {
-            const response = yield this.client.pulls.merge({
-                owner: this.owner,
-                repo: this.repo,
-                pull_number: pullNumber,
-                merge_method: 'rebase',
-            });
+            const response = yield this.client.pulls.merge(Object.assign(Object.assign({}, this.upstreamRepo), { pull_number: pullNumber, merge_method: 'rebase' }));
             return response.data;
         });
     }
     createPullRequest({ title, body, head, base, }) {
         return __awaiter(this, void 0, void 0, function* () {
-            const response = yield this.client.pulls.create({
-                owner: this.owner,
-                repo: this.repo,
-                title,
+            const response = yield this.client.pulls.create(Object.assign(Object.assign({}, this.upstreamRepo), { title,
                 head,
                 base,
-                body,
-            });
+                body }));
             return response.data;
         });
     }
     closePullRequestAndDeleteBranch({ pullNumber, head, reason, }) {
         return __awaiter(this, void 0, void 0, function* () {
-            yield this.client.issues.createComment({
-                owner: this.owner,
-                repo: this.repo,
-                issue_number: pullNumber,
-                body: `
+            yield this.client.issues.createComment(Object.assign(Object.assign({}, this.upstreamRepo), { issue_number: pullNumber, body: `
 Closing pull request, reason: ${reason}
-`.trim(),
-            });
-            yield this.client.pulls.update({
-                owner: this.owner,
-                repo: this.repo,
-                pull_number: pullNumber,
-                state: 'closed',
-            });
-            yield this.client.git.deleteRef({
-                owner: this.owner,
-                repo: this.repo,
-                ref: `head/${head}`,
-            });
+`.trim() }));
+            yield this.client.pulls.update(Object.assign(Object.assign({}, this.upstreamRepo), { pull_number: pullNumber, state: 'closed' }));
+            yield this.client.git.deleteRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `head/${head}` }));
         });
     }
 }

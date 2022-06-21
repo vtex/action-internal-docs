@@ -9,7 +9,7 @@
     "build:ncc": "ncc build --source-map --license licenses.txt",
     "build": "run-s build:ts build:ncc",
     "lint": "eslint --ext ts,js .",
-    "test": "jest --passWithNoTests",
+    "test": "jest",
     "prepare": "husky install"
   },
   "repository": {

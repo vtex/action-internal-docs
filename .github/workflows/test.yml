@@ -14,6 +14,7 @@ jobs:
 
       # Use this own repository
       - uses: ./
+        id: action
         with:
           repo-owner: vtex
           repo-name: action-internal-docs
@@ -22,3 +23,13 @@ jobs:
           docs-product: Internal Docs Test
           auto-merge: false
           ref: test-case/docs
+      - name: Checkout to previous branch
+        run: |
+          git fetch origin ${{ github.ref }}
+          git checkout FETCH_HEAD
+      - name: Verify PR opened
+        shell: bash
+        run: |
+          ./tests/check-simple-docs.sh ${{ steps.action.outputs.pull-request-number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

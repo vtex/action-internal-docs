@@ -13,20 +13,22 @@ import {
 } from './constants'
 
 async function run(): Promise<void> {
+  const ref = core.getInput('ref')
+
+  if (ref) {
+    core.info(`Switching to ref "${ref}"`)
+
+    await exec('git', ['fetch', 'origin', ref], { silent: true })
+    await exec('git', ['checkout', ref], { silent: true })
+  }
+
+  if (!fs.existsSync(DOCS_FOLDER)) {
+    core.info(`Folder ${DOCS_FOLDER} does not exist, exiting.`)
+
+    return
+  }
+
   try {
-    const ref = core.getInput('ref')
-
-    if (ref) {
-      await exec('git', ['fetch', 'origin', ref])
-      await exec('git', ['checkout', ref])
-    }
-
-    if (!fs.existsSync(DOCS_FOLDER)) {
-      core.info(`Folder ${DOCS_FOLDER} does not exist, exiting.`)
-
-      return
-    }
-
     const files = (await recursive(DOCS_FOLDER)).map((file) => {
       return {
         name: file,
@@ -141,6 +143,12 @@ https://github.com/${kit.ownRepoOwner}/${kit.ownRepoName}/commit/${github.contex
 `.trim(),
     })
 
+    core.info(
+      `Created pull-request https://github.com/${upstreamRepoOwner}/${upstreamRepoName}/pull/${pull.number}`
+    )
+
+    core.setOutput('pull-request-number', pull.number)
+
     try {
       core.debug('Trying to automatically merge pull-request')
 
@@ -162,8 +170,8 @@ https://github.com/${kit.ownRepoOwner}/${kit.ownRepoName}/commit/${github.contex
       })
     }
   } catch (error) {
-    core.debug('An unexpected error has ocurred')
-    core.debug(error)
+    core.error('An unexpected error has ocurred')
+    core.error(error)
 
     core.setFailed(error)
     throw error

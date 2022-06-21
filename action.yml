@@ -25,6 +25,9 @@ inputs:
   ref:
     description: Git ref of own repository to use as base for docs crawling
     required: false
+outputs:
+  pull-request-number:
+    description: Number of the pull-request opened in upstream repo
 runs:
   using: node16
   main: dist/index.js

@@ -63,16 +63,17 @@ const constants_1 = __nccwpck_require__(5105);
 function run() {
     var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
+        const ref = core.getInput('ref');
+        if (ref) {
+            core.info(`Switching to ref "${ref}"`);
+            yield exec_1.exec('git', ['fetch', 'origin', ref], { silent: true });
+            yield exec_1.exec('git', ['checkout', ref], { silent: true });
+        }
+        if (!fs.existsSync(constants_1.DOCS_FOLDER)) {
+            core.info(`Folder ${constants_1.DOCS_FOLDER} does not exist, exiting.`);
+            return;
+        }
         try {
-            const ref = core.getInput('ref');
-            if (ref) {
-                yield exec_1.exec('git', ['fetch', 'origin', ref]);
-                yield exec_1.exec('git', ['checkout', ref]);
-            }
-            if (!fs.existsSync(constants_1.DOCS_FOLDER)) {
-                core.info(`Folder ${constants_1.DOCS_FOLDER} does not exist, exiting.`);
-                return;
-            }
             const files = (yield recursive_readdir_1.default(constants_1.DOCS_FOLDER)).map((file) => {
                 return {
                     name: file,
@@ -148,6 +149,8 @@ https://github.com/${kit.ownRepoOwner}/${kit.ownRepoName}/commit/${github.contex
 [GitHub action]: http://github.com/vtex/action-internal-docs
 `.trim(),
             });
+            core.info(`Created pull-request https://github.com/${upstreamRepoOwner}/${upstreamRepoName}/pull/${pull.number}`);
+            core.setOutput('pull-request-number', pull.number);
             try {
                 core.debug('Trying to automatically merge pull-request');
                 if (autoMergeEnabled === 'true') {
@@ -170,8 +173,8 @@ https://github.com/${kit.ownRepoOwner}/${kit.ownRepoName}/commit/${github.contex
             }
         }
         catch (error) {
-            core.debug('An unexpected error has ocurred');
-            core.debug(error);
+            core.error('An unexpected error has ocurred');
+            core.error(error);
             core.setFailed(error);
             throw error;
         }

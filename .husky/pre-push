@@ -1,0 +1,10 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+yarn build
+
+if [ "$(git diff --ignore-space-at-eol dist/ | wc -l)" -gt "0" ]; then
+  echo "Detected uncommitted changes after build.  Run \`git diff\` to check the changes"
+  git status --short
+  exit 1
+fi

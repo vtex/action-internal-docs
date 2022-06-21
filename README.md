@@ -66,5 +66,9 @@ jobs:
    in the `docs/` folder to the `vtex/internal-docs` repo and it will be made 
    available on `https://internal-docs.vtex.com/`
 
+## Contributing
+
+If you want to contribute to this repo, please refer to [CONTRIBUTING.md](./CONTRIBUTING.md)
+
 [#tech-docs]: https://vtex.slack.com/archives/C01U3LVT11B
 [Internal Docs repo]: http://github.com/vtex/internal-docs

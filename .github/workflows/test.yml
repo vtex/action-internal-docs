@@ -29,7 +29,11 @@ jobs:
           git checkout FETCH_HEAD
       - name: Verify PR opened
         shell: bash
-        run: |
-          ./tests/check-simple-docs.sh ${{ steps.action.outputs.pull-request-number }}
+        run: tests/check-simple-docs.sh ${{ steps.action.outputs.pull-request-number }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check PR title and body
+        shell: bash
+        run: tests/check-pr-title-and-body.sh ${{ steps.action.outputs.pull-request-number }} $GITHUB_SHA
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -22,9 +22,7 @@ describe('TechDocs kit', () => {
   })
 
   it('should use own repo owner and name for new branch', () => {
-    const upstreamBranchName = techDocsKit.getNewUpstreamBranchName(
-      '7a2fdbabd794d7c1e5bb80ec3f88522d810932e1'
-    )
+    const upstreamBranchName = techDocsKit.getNewUpstreamBranchName()
 
     expect(upstreamBranchName).toStrictEqual(
       expect.stringContaining('vtex-action-internal-docs')

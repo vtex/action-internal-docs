@@ -139,17 +139,24 @@ async function run(): Promise<void> {
 
     const branchToPush = kit.getNewUpstreamBranchName()
 
-    await kit.createBranchAndCommit({
-      message: `
+    try {
+      await kit.createBranchAndCommit({
+        message: `
 Documentation sync [from ${kit.ownRepoFormatted}]
 
 Automatic synchronization triggered via GitHub Action.
 This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
 `.trim(),
-      baseBranch: upstreamRepoBranch,
-      branchName: branchToPush,
-      files: updatedFiles,
-    })
+        baseBranch: upstreamRepoBranch,
+        branchName: branchToPush,
+        files: updatedFiles,
+      })
+    } catch (err) {
+      core.error(`Failed to create and push commits to branch ${branchToPush}`)
+      core.setFailed(err)
+
+      return
+    }
 
     core.debug('Creating pull-request for branch')
 

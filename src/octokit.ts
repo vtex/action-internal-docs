@@ -3,7 +3,6 @@ import type { RestEndpointMethodTypes } from '@octokit/rest'
 
 type Octo = InstanceType<typeof GitHub>
 
-const DEFAULT_BRANCH = 'main'
 const SHORT_SHA_LENGTH = 8
 
 interface Repo {
@@ -54,28 +53,6 @@ export class TechDocsKit {
     return `docs-${owner}-${repo}-${shortSha1}`
   }
 
-  public async getCurrentCommit({
-    branch = DEFAULT_BRANCH,
-  }: {
-    branch?: string
-  }) {
-    const { data: refData } = await this.client.git.getRef({
-      ...this.upstreamRepo,
-      ref: `heads/${branch}`,
-    })
-
-    const commitSha = refData.object.sha
-    const { data: commitData } = await this.client.git.getCommit({
-      ...this.upstreamRepo,
-      commit_sha: commitSha,
-    })
-
-    return {
-      commitSha,
-      treeSha: commitData.tree.sha,
-    }
-  }
-
   public async createBlobForFile(
     {
       content,
@@ -84,7 +61,6 @@ export class TechDocsKit {
     },
     encoding = 'utf-8'
   ) {
-    // const content = await getFileAsUTF8(filePath)
     const blobData = await this.client.git.createBlob({
       ...this.upstreamRepo,
       content,
@@ -94,17 +70,37 @@ export class TechDocsKit {
     return blobData.data
   }
 
-  public async createNewTree({
+  public async createBranchAndCommit({
+    message,
+    branchName,
+    baseBranch,
     blobs,
     paths,
-    parentTreeSha,
   }: {
+    message: string
+    branchName: string
+    baseBranch: string
     blobs: Array<
       RestEndpointMethodTypes['git']['createBlob']['response']['data']
     >
     paths: string[]
-    parentTreeSha: string
   }) {
+    const { data: refData } = await this.client.git.getRef({
+      ...this.upstreamRepo,
+      ref: `heads/${baseBranch}`,
+    })
+
+    const commitSha = refData.object.sha
+
+    const {
+      data: {
+        tree: { sha: treeSha },
+      },
+    } = await this.client.git.getCommit({
+      ...this.upstreamRepo,
+      commit_sha: commitSha,
+    })
+
     const mode = '100644' as const
     const type = 'blob' as const
 
@@ -119,61 +115,27 @@ export class TechDocsKit {
       sha,
     }))
 
-    const { data: treeData } = await this.client.git.createTree({
+    const {
+      data: { sha: newTreeSha },
+    } = await this.client.git.createTree({
       ...this.upstreamRepo,
       tree,
-      base_tree: parentTreeSha,
+      base_tree: treeSha,
     })
 
-    return treeData
-  }
-
-  public async createBranch({
-    branch,
-    parentSha,
-  }: {
-    branch: string
-    parentSha: string
-  }) {
-    const response = await this.client.git.createRef({
-      ...this.upstreamRepo,
-      ref: `refs/heads/${branch}`,
-      sha: parentSha,
-    })
-
-    return response.data.object.sha
-  }
-
-  public async createNewCommit({
-    message = 'Update to course',
-    treeSha,
-    currentCommitSha,
-  }: {
-    message?: string
-    treeSha: string
-    currentCommitSha: string
-  }) {
-    const { data: commitData } = await this.client.git.createCommit({
+    const {
+      data: { sha: newCommitSha },
+    } = await this.client.git.createCommit({
       ...this.upstreamRepo,
       message,
-      tree: treeSha,
-      parents: [currentCommitSha],
+      tree: newTreeSha,
+      parents: [commitSha],
     })
 
-    return commitData
-  }
-
-  public async setBranchRefToCommit({
-    branch = DEFAULT_BRANCH,
-    commitSha,
-  }: {
-    branch?: string
-    commitSha: string
-  }) {
-    return this.client.git.updateRef({
+    await this.client.git.createRef({
       ...this.upstreamRepo,
-      ref: `heads/${branch}`,
-      sha: commitSha,
+      ref: `refs/heads/${branchName}`,
+      sha: newCommitSha,
     })
   }
 

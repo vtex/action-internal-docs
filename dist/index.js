@@ -107,37 +107,18 @@ function run() {
                 }
                 return kit.createBlobForFile({ content });
             })));
-            core.debug(`Getting current commit for branch ${upstreamRepoBranch}`);
-            const currentCommit = yield kit.getCurrentCommit({
-                branch: upstreamRepoBranch,
-            });
-            core.debug(`Creating tree for paths with parent ${currentCommit.treeSha}\n${paths.join('\n')}`);
-            const newTree = yield kit.createNewTree({
-                blobs,
-                paths,
-                parentTreeSha: currentCommit.treeSha,
-            });
             const branchToPush = kit.getNewUpstreamBranchName(github.context.sha);
-            core.debug(`Creating branch ${branchToPush}`);
-            yield kit.createBranch({
-                branch: branchToPush,
-                parentSha: currentCommit.commitSha,
-            });
-            core.debug(`Creating commit in tree ${newTree.sha}`);
-            const newCommit = yield kit.createNewCommit({
+            yield kit.createBranchAndCommit({
                 message: `
 Documentation sync [from ${kit.ownRepoFormatted}]
 
 Automatic synchronization triggered via GitHub Action.
 This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
 `.trim(),
-                treeSha: newTree.sha,
-                currentCommitSha: currentCommit.commitSha,
-            });
-            core.debug(`Set branch ref to commit ${newCommit.sha}`);
-            yield kit.setBranchRefToCommit({
-                branch: branchToPush,
-                commitSha: newCommit.sha,
+                baseBranch: upstreamRepoBranch,
+                branchName: branchToPush,
+                blobs,
+                paths,
             });
             core.debug('Creating pull-request for branch');
             const pull = yield kit.createPullRequest({
@@ -206,7 +187,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TechDocsKit = void 0;
-const DEFAULT_BRANCH = 'main';
 const SHORT_SHA_LENGTH = 8;
 class TechDocsKit {
     constructor({ client, upstreamRepo, ownRepo, }) {
@@ -231,27 +211,18 @@ class TechDocsKit {
         const shortSha1 = sha1.slice(0, SHORT_SHA_LENGTH);
         return `docs-${owner}-${repo}-${shortSha1}`;
     }
-    getCurrentCommit({ branch = DEFAULT_BRANCH, }) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const { data: refData } = yield this.client.git.getRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `heads/${branch}` }));
-            const commitSha = refData.object.sha;
-            const { data: commitData } = yield this.client.git.getCommit(Object.assign(Object.assign({}, this.upstreamRepo), { commit_sha: commitSha }));
-            return {
-                commitSha,
-                treeSha: commitData.tree.sha,
-            };
-        });
-    }
     createBlobForFile({ content, }, encoding = 'utf-8') {
         return __awaiter(this, void 0, void 0, function* () {
-            // const content = await getFileAsUTF8(filePath)
             const blobData = yield this.client.git.createBlob(Object.assign(Object.assign({}, this.upstreamRepo), { content,
                 encoding }));
             return blobData.data;
         });
     }
-    createNewTree({ blobs, paths, parentTreeSha, }) {
+    createBranchAndCommit({ message, branchName, baseBranch, blobs, paths, }) {
         return __awaiter(this, void 0, void 0, function* () {
+            const { data: refData } = yield this.client.git.getRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `heads/${baseBranch}` }));
+            const commitSha = refData.object.sha;
+            const { data: { tree: { sha: treeSha }, }, } = yield this.client.git.getCommit(Object.assign(Object.assign({}, this.upstreamRepo), { commit_sha: commitSha }));
             const mode = '100644';
             const type = 'blob';
             if (!blobs.length || blobs.length !== paths.length) {
@@ -263,25 +234,9 @@ class TechDocsKit {
                 type,
                 sha,
             }));
-            const { data: treeData } = yield this.client.git.createTree(Object.assign(Object.assign({}, this.upstreamRepo), { tree, base_tree: parentTreeSha }));
-            return treeData;
-        });
-    }
-    createBranch({ branch, parentSha, }) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const response = yield this.client.git.createRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `refs/heads/${branch}`, sha: parentSha }));
-            return response.data.object.sha;
-        });
-    }
-    createNewCommit({ message = 'Update to course', treeSha, currentCommitSha, }) {
-        return __awaiter(this, void 0, void 0, function* () {
-            const { data: commitData } = yield this.client.git.createCommit(Object.assign(Object.assign({}, this.upstreamRepo), { message, tree: treeSha, parents: [currentCommitSha] }));
-            return commitData;
-        });
-    }
-    setBranchRefToCommit({ branch = DEFAULT_BRANCH, commitSha, }) {
-        return __awaiter(this, void 0, void 0, function* () {
-            return this.client.git.updateRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `heads/${branch}`, sha: commitSha }));
+            const { data: { sha: newTreeSha }, } = yield this.client.git.createTree(Object.assign(Object.assign({}, this.upstreamRepo), { tree, base_tree: treeSha }));
+            const { data: { sha: newCommitSha }, } = yield this.client.git.createCommit(Object.assign(Object.assign({}, this.upstreamRepo), { message, tree: newTreeSha, parents: [commitSha] }));
+            yield this.client.git.createRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `refs/heads/${branchName}`, sha: newCommitSha }));
         });
     }
     mergePullRequest({ pullNumber }) {

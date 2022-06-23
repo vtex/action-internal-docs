@@ -84,51 +84,19 @@ async function run(): Promise<void> {
       })
     )
 
-    core.debug(`Getting current commit for branch ${upstreamRepoBranch}`)
-
-    const currentCommit = await kit.getCurrentCommit({
-      branch: upstreamRepoBranch,
-    })
-
-    core.debug(
-      `Creating tree for paths with parent ${
-        currentCommit.treeSha
-      }\n${paths.join('\n')}`
-    )
-
-    const newTree = await kit.createNewTree({
-      blobs,
-      paths,
-      parentTreeSha: currentCommit.treeSha,
-    })
-
     const branchToPush = kit.getNewUpstreamBranchName(github.context.sha)
 
-    core.debug(`Creating branch ${branchToPush}`)
-
-    await kit.createBranch({
-      branch: branchToPush,
-      parentSha: currentCommit.commitSha,
-    })
-
-    core.debug(`Creating commit in tree ${newTree.sha}`)
-
-    const newCommit = await kit.createNewCommit({
+    await kit.createBranchAndCommit({
       message: `
 Documentation sync [from ${kit.ownRepoFormatted}]
 
 Automatic synchronization triggered via GitHub Action.
 This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
 `.trim(),
-      treeSha: newTree.sha,
-      currentCommitSha: currentCommit.commitSha,
-    })
-
-    core.debug(`Set branch ref to commit ${newCommit.sha}`)
-
-    await kit.setBranchRefToCommit({
-      branch: branchToPush,
-      commitSha: newCommit.sha,
+      baseBranch: upstreamRepoBranch,
+      branchName: branchToPush,
+      blobs,
+      paths,
     })
 
     core.debug('Creating pull-request for branch')

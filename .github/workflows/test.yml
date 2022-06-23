@@ -1,4 +1,4 @@
-name: Test
+name: Test E2E
 on:
   pull_request:
   push:
@@ -6,13 +6,13 @@ on:
     - main
 
 jobs:
-  test:
+  test_basic:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v3
 
-      # Use this own repository
+      # Test case: should open PR with new docs
       - uses: ./
         id: action
         with:
@@ -35,5 +35,32 @@ jobs:
       - name: Check PR title and body
         shell: bash
         run: tests/check-pr-title-and-body.sh ${{ steps.action.outputs.pull-request-number }} $GITHUB_SHA
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test_no_open_pr:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      # Test case: should not open PR because docs haven't changed
+      - uses: ./
+        id: action
+        with:
+          repo-owner: vtex
+          repo-name: action-internal-docs
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          repo-branch: test-case/docs
+          docs-product: Internal Docs Test
+          auto-merge: false
+          ref: test-case/no-docs-change
+      - name: Checkout to previous branch
+        run: |
+          git fetch origin ${{ github.ref }}
+          git checkout FETCH_HEAD
+      - name: Verify PR not opened
+        shell: bash
+        run: tests/check-no-pr-open.sh ${{ steps.action.outputs.pull-request-number }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

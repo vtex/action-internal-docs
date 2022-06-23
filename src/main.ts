@@ -114,7 +114,12 @@ async function run(): Promise<void> {
     core.debug(`Creating commit in tree ${newTree.sha}`)
 
     const newCommit = await kit.createNewCommit({
-      message: `docs`,
+      message: `
+Documentation sync [from ${kit.ownRepoFormatted}]
+
+Automatic synchronization triggered via GitHub Action.
+This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
+`.trim(),
       treeSha: newTree.sha,
       currentCommitSha: currentCommit.commitSha,
     })
@@ -129,7 +134,7 @@ async function run(): Promise<void> {
     core.debug('Creating pull-request for branch')
 
     const pull = await kit.createPullRequest({
-      title: `Docs sync (${kit.ownRepoOwner}/${kit.ownRepoName})`,
+      title: `Docs sync (${kit.ownRepoFormatted})`,
       head: branchToPush,
       base: upstreamRepoBranch,
       body: `
@@ -137,14 +142,14 @@ Documentation synchronization from [GitHub action]
 
 This update is refers to the following commit:
 
-https://github.com/${kit.ownRepoOwner}/${kit.ownRepoName}/commit/${github.context.sha}
+https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
 
 [GitHub action]: http://github.com/vtex/action-internal-docs
 `.trim(),
     })
 
     core.info(
-      `Created pull-request https://github.com/${upstreamRepoOwner}/${upstreamRepoName}/pull/${pull.number}`
+      `Created pull-request https://github.com/${kit.upstreamRepoFormatted}/pull/${pull.number}`
     )
 
     core.setOutput('pull-request-number', pull.number)

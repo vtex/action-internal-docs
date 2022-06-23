@@ -38,6 +38,14 @@ export class TechDocsKit {
     return this.ownRepo.repo
   }
 
+  public get ownRepoFormatted() {
+    return `${this.ownRepo.owner}/${this.ownRepo.repo}`
+  }
+
+  public get upstreamRepoFormatted() {
+    return `${this.upstreamRepo.owner}/${this.upstreamRepo.repo}`
+  }
+
   public getNewUpstreamBranchName(sha1: string) {
     const { owner, repo } = this.ownRepo
 

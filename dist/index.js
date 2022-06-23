@@ -125,7 +125,12 @@ function run() {
             });
             core.debug(`Creating commit in tree ${newTree.sha}`);
             const newCommit = yield kit.createNewCommit({
-                message: `docs`,
+                message: `
+Documentation sync [from ${kit.ownRepoFormatted}]
+
+Automatic synchronization triggered via GitHub Action.
+This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
+`.trim(),
                 treeSha: newTree.sha,
                 currentCommitSha: currentCommit.commitSha,
             });
@@ -136,7 +141,7 @@ function run() {
             });
             core.debug('Creating pull-request for branch');
             const pull = yield kit.createPullRequest({
-                title: `Docs sync (${kit.ownRepoOwner}/${kit.ownRepoName})`,
+                title: `Docs sync (${kit.ownRepoFormatted})`,
                 head: branchToPush,
                 base: upstreamRepoBranch,
                 body: `
@@ -144,12 +149,12 @@ Documentation synchronization from [GitHub action]
 
 This update is refers to the following commit:
 
-https://github.com/${kit.ownRepoOwner}/${kit.ownRepoName}/commit/${github.context.sha}
+https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
 
 [GitHub action]: http://github.com/vtex/action-internal-docs
 `.trim(),
             });
-            core.info(`Created pull-request https://github.com/${upstreamRepoOwner}/${upstreamRepoName}/pull/${pull.number}`);
+            core.info(`Created pull-request https://github.com/${kit.upstreamRepoFormatted}/pull/${pull.number}`);
             core.setOutput('pull-request-number', pull.number);
             try {
                 core.debug('Trying to automatically merge pull-request');
@@ -214,6 +219,12 @@ class TechDocsKit {
     }
     get ownRepoName() {
         return this.ownRepo.repo;
+    }
+    get ownRepoFormatted() {
+        return `${this.ownRepo.owner}/${this.ownRepo.repo}`;
+    }
+    get upstreamRepoFormatted() {
+        return `${this.upstreamRepo.owner}/${this.upstreamRepo.repo}`;
     }
     getNewUpstreamBranchName(sha1) {
         const { owner, repo } = this.ownRepo;

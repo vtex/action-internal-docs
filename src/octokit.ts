@@ -74,16 +74,15 @@ export class TechDocsKit {
     message,
     branchName,
     baseBranch,
-    blobs,
-    paths,
+    files,
   }: {
     message: string
     branchName: string
     baseBranch: string
-    blobs: Array<
-      RestEndpointMethodTypes['git']['createBlob']['response']['data']
-    >
-    paths: string[]
+    files: Array<{
+      path: string
+      file: RestEndpointMethodTypes['git']['createBlob']['response']['data']
+    }>
   }) {
     const { data: refData } = await this.client.git.getRef({
       ...this.upstreamRepo,
@@ -104,15 +103,11 @@ export class TechDocsKit {
     const mode = '100644' as const
     const type = 'blob' as const
 
-    if (!blobs.length || blobs.length !== paths.length) {
-      throw new Error('You should provide the same number of blobs and paths')
-    }
-
-    const tree = blobs.map(({ sha }, index) => ({
-      path: paths[index],
+    const tree = files.map(({ path, file }) => ({
+      path,
       mode,
       type,
-      sha,
+      sha: file.sha,
     }))
 
     const {

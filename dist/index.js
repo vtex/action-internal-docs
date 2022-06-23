@@ -60,6 +60,7 @@ const recursive_readdir_1 = __importDefault(__nccwpck_require__(6715));
 const exec_1 = __nccwpck_require__(1514);
 const octokit_1 = __nccwpck_require__(3258);
 const constants_1 = __nccwpck_require__(5105);
+const utils_1 = __nccwpck_require__(918);
 function run() {
     var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
@@ -91,22 +92,59 @@ function run() {
             const upstreamRepoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
             const upstreamRepoBranch = (_c = core.getInput('repo-branch')) !== null && _c !== void 0 ? _c : constants_1.INTERNAL_DOCS_DEFAULT_BRANCH;
             const autoMergeEnabled = core.getInput('auto-merge');
+            const octokitClient = github.getOctokit(repoToken);
             const kit = new octokit_1.TechDocsKit({
-                client: github.getOctokit(repoToken),
+                client: octokitClient,
                 upstreamRepo: {
                     owner: upstreamRepoOwner,
                     repo: upstreamRepoName,
                 },
                 ownRepo: github.context.repo,
             });
-            const paths = files.map((file) => `docs/${product}/${file.name.replace('docs/', '')}`);
-            const blobs = yield Promise.all(files.map((file) => __awaiter(this, void 0, void 0, function* () {
-                const { content } = file;
-                if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
-                    return kit.createBlobForFile({ content }, 'base64');
+            const { data: baseBranchRef } = yield octokitClient.git.getRef({
+                owner: upstreamRepoOwner,
+                repo: upstreamRepoName,
+                ref: `heads/${upstreamRepoBranch}`,
+            });
+            const { data: baseBranchTree } = yield octokitClient.git.getTree({
+                owner: upstreamRepoOwner,
+                repo: upstreamRepoName,
+                tree_sha: baseBranchRef.object.sha,
+            });
+            const existingFiles = (yield Promise.all(baseBranchTree.tree
+                .filter((leaf) => { var _a; return (_a = leaf.path) === null || _a === void 0 ? void 0 : _a.startsWith(`docs/${product}`); })
+                .map(({ path, sha }) => __awaiter(this, void 0, void 0, function* () {
+                const { data: fileBlob } = yield octokitClient.git.getBlob({
+                    owner: upstreamRepoOwner,
+                    repo: upstreamRepoName,
+                    file_sha: sha,
+                });
+                return { path: path, file: fileBlob };
+            })))).sort(utils_1.sortByPath);
+            const updatedFiles = (yield Promise.all(files
+                .map((file) => ({
+                path: `docs/${product}/${file.name.replace('docs/', '')}`,
+                content: file.content,
+            }))
+                .map(({ path, content }) => __awaiter(this, void 0, void 0, function* () {
+                let blob;
+                if (path.endsWith('png') || path.endsWith('jpg')) {
+                    blob = yield kit.createBlobForFile({ content }, 'base64');
                 }
-                return kit.createBlobForFile({ content });
-            })));
+                else {
+                    blob = yield kit.createBlobForFile({ content });
+                }
+                return { path, file: blob };
+            })))).sort(utils_1.sortByPath);
+            // Check if diff is equal
+            if (existingFiles.length === updatedFiles.length) {
+                const areEqual = existingFiles.every((file, index) => file.path === updatedFiles[index].path &&
+                    file.file.sha === updatedFiles[index].file.sha);
+                if (areEqual) {
+                    core.info("Documentation haven't been changed, skipping docs pull-request");
+                    return;
+                }
+            }
             const branchToPush = kit.getNewUpstreamBranchName(github.context.sha);
             yield kit.createBranchAndCommit({
                 message: `
@@ -117,8 +155,7 @@ This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit
 `.trim(),
                 baseBranch: upstreamRepoBranch,
                 branchName: branchToPush,
-                blobs,
-                paths,
+                files: updatedFiles,
             });
             core.debug('Creating pull-request for branch');
             const pull = yield kit.createPullRequest({
@@ -218,21 +255,18 @@ class TechDocsKit {
             return blobData.data;
         });
     }
-    createBranchAndCommit({ message, branchName, baseBranch, blobs, paths, }) {
+    createBranchAndCommit({ message, branchName, baseBranch, files, }) {
         return __awaiter(this, void 0, void 0, function* () {
             const { data: refData } = yield this.client.git.getRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `heads/${baseBranch}` }));
             const commitSha = refData.object.sha;
             const { data: { tree: { sha: treeSha }, }, } = yield this.client.git.getCommit(Object.assign(Object.assign({}, this.upstreamRepo), { commit_sha: commitSha }));
             const mode = '100644';
             const type = 'blob';
-            if (!blobs.length || blobs.length !== paths.length) {
-                throw new Error('You should provide the same number of blobs and paths');
-            }
-            const tree = blobs.map(({ sha }, index) => ({
-                path: paths[index],
+            const tree = files.map(({ path, file }) => ({
+                path,
                 mode,
                 type,
-                sha,
+                sha: file.sha,
             }));
             const { data: { sha: newTreeSha }, } = yield this.client.git.createTree(Object.assign(Object.assign({}, this.upstreamRepo), { tree, base_tree: treeSha }));
             const { data: { sha: newCommitSha }, } = yield this.client.git.createCommit(Object.assign(Object.assign({}, this.upstreamRepo), { message, tree: newTreeSha, parents: [commitSha] }));
@@ -265,6 +299,27 @@ Closing pull request, reason: ${reason}
     }
 }
 exports.TechDocsKit = TechDocsKit;
+
+
+/***/ }),
+
+/***/ 918:
+/***/ ((__unused_webpack_module, exports) => {
+
+"use strict";
+
+Object.defineProperty(exports, "__esModule", ({ value: true }));
+exports.sortByPath = void 0;
+function sortByPath({ path: pathA }, { path: pathB }) {
+    if (pathA < pathB) {
+        return -1;
+    }
+    if (pathA > pathB) {
+        return 1;
+    }
+    return 0;
+}
+exports.sortByPath = sortByPath;
 
 
 /***/ }),

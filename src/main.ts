@@ -11,6 +11,7 @@ import {
   INTERNAL_DOCS_DEFAULT_BRANCH,
   DOCS_FOLDER,
 } from './constants'
+import { sortByPath } from './utils'
 
 async function run(): Promise<void> {
   const ref = core.getInput('ref')
@@ -59,8 +60,10 @@ async function run(): Promise<void> {
 
     const autoMergeEnabled = core.getInput('auto-merge')
 
+    const octokitClient = github.getOctokit(repoToken)
+
     const kit = new TechDocsKit({
-      client: github.getOctokit(repoToken),
+      client: octokitClient,
       upstreamRepo: {
         owner: upstreamRepoOwner,
         repo: upstreamRepoName,
@@ -68,21 +71,71 @@ async function run(): Promise<void> {
       ownRepo: github.context.repo,
     })
 
-    const paths = files.map(
-      (file) => `docs/${product}/${file.name.replace('docs/', '')}`
-    )
+    const { data: baseBranchRef } = await octokitClient.git.getRef({
+      owner: upstreamRepoOwner,
+      repo: upstreamRepoName,
+      ref: `heads/${upstreamRepoBranch}`,
+    })
 
-    const blobs = await Promise.all(
-      files.map(async (file) => {
-        const { content } = file
+    const { data: baseBranchTree } = await octokitClient.git.getTree({
+      owner: upstreamRepoOwner,
+      repo: upstreamRepoName,
+      tree_sha: baseBranchRef.object.sha,
+    })
 
-        if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
-          return kit.createBlobForFile({ content }, 'base64')
-        }
+    const existingFiles = (
+      await Promise.all(
+        baseBranchTree.tree
+          .filter((leaf) => leaf.path?.startsWith(`docs/${product}`))
+          .map(async ({ path, sha }) => {
+            const { data: fileBlob } = await octokitClient.git.getBlob({
+              owner: upstreamRepoOwner,
+              repo: upstreamRepoName,
+              file_sha: sha!,
+            })
 
-        return kit.createBlobForFile({ content })
-      })
-    )
+            return { path: path!, file: fileBlob }
+          })
+      )
+    ).sort(sortByPath)
+
+    const updatedFiles = (
+      await Promise.all(
+        files
+          .map((file) => ({
+            path: `docs/${product}/${file.name.replace('docs/', '')}`,
+            content: file.content,
+          }))
+          .map(async ({ path, content }) => {
+            let blob
+
+            if (path.endsWith('png') || path.endsWith('jpg')) {
+              blob = await kit.createBlobForFile({ content }, 'base64')
+            } else {
+              blob = await kit.createBlobForFile({ content })
+            }
+
+            return { path, file: blob }
+          })
+      )
+    ).sort(sortByPath)
+
+    // Check if diff is equal
+    if (existingFiles.length === updatedFiles.length) {
+      const areEqual = existingFiles.every(
+        (file, index) =>
+          file.path === updatedFiles[index].path &&
+          file.file.sha === updatedFiles[index].file.sha
+      )
+
+      if (areEqual) {
+        core.info(
+          "Documentation haven't been changed, skipping docs pull-request"
+        )
+
+        return
+      }
+    }
 
     const branchToPush = kit.getNewUpstreamBranchName(github.context.sha)
 
@@ -95,8 +148,7 @@ This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit
 `.trim(),
       baseBranch: upstreamRepoBranch,
       branchName: branchToPush,
-      blobs,
-      paths,
+      files: updatedFiles,
     })
 
     core.debug('Creating pull-request for branch')

@@ -62,7 +62,6 @@ const octokit_1 = __nccwpck_require__(3258);
 const constants_1 = __nccwpck_require__(5105);
 const utils_1 = __nccwpck_require__(918);
 function run() {
-    var _a, _b, _c;
     return __awaiter(this, void 0, void 0, function* () {
         const ref = core.getInput('ref');
         if (ref) {
@@ -88,9 +87,9 @@ function run() {
             });
             const repoToken = core.getInput('repo-token');
             const product = core.getInput('docs-product', { required: true });
-            const upstreamRepoOwner = (_a = core.getInput('repo-owner')) !== null && _a !== void 0 ? _a : constants_1.INTERNAL_DOCS_REPO_OWNER;
-            const upstreamRepoName = (_b = core.getInput('repo-name')) !== null && _b !== void 0 ? _b : constants_1.INTERNAL_DOCS_REPO_NAME;
-            const upstreamRepoBranch = (_c = core.getInput('repo-branch')) !== null && _c !== void 0 ? _c : constants_1.INTERNAL_DOCS_DEFAULT_BRANCH;
+            const upstreamRepoOwner = core.getInput('repo-owner') || constants_1.INTERNAL_DOCS_REPO_OWNER;
+            const upstreamRepoName = core.getInput('repo-name') || constants_1.INTERNAL_DOCS_REPO_NAME;
+            const upstreamRepoBranch = core.getInput('repo-branch') || constants_1.INTERNAL_DOCS_DEFAULT_BRANCH;
             const autoMergeEnabled = core.getInput('auto-merge');
             const octokitClient = github.getOctokit(repoToken);
             const kit = new octokit_1.TechDocsKit({
@@ -110,18 +109,15 @@ function run() {
                 owner: upstreamRepoOwner,
                 repo: upstreamRepoName,
                 tree_sha: baseBranchRef.object.sha,
-                recursive: 'true',
             });
-            const existingFiles = (yield Promise.all(baseBranchTree.tree
-                .filter((leaf) => { var _a; return (_a = leaf.path) === null || _a === void 0 ? void 0 : _a.startsWith(`docs/${product}`); })
-                .map(({ path, sha }) => __awaiter(this, void 0, void 0, function* () {
-                const { data: fileBlob } = yield octokitClient.git.getBlob({
-                    owner: upstreamRepoOwner,
-                    repo: upstreamRepoName,
-                    file_sha: sha,
-                });
-                return { path: path, file: fileBlob };
-            })))).sort(utils_1.sortByPath);
+            const completeTree = yield getTreeRecursive(baseBranchTree.tree, (sha) => octokitClient.git
+                .getTree({
+                owner: upstreamRepoOwner,
+                repo: upstreamRepoName,
+                tree_sha: sha,
+            })
+                .then(({ data }) => data.tree), `docs/${product}`);
+            const existingFiles = (yield Promise.all(completeTree.filter((leaf) => { var _a; return ((_a = leaf.path) === null || _a === void 0 ? void 0 : _a.startsWith(`docs/${product}`)) && leaf.type === 'blob'; }))).sort(utils_1.sortByPath);
             const updatedFiles = (yield Promise.all(files
                 .map((file) => ({
                 path: `docs/${product}/${file.name.replace('docs/', '')}`,
@@ -137,16 +133,10 @@ function run() {
                 }
                 return { path, file: Object.assign(Object.assign({}, blob), { content }) };
             })))).sort(utils_1.sortByPath);
-            // eslint-disable-next-line no-console
-            console.log(baseBranchTree.tree, updatedFiles.map((file) => ({
-                path: file.path,
-                sha: file.file.sha,
-                content: file.file.content,
-            })));
             // Check if diff is equal
             if (existingFiles.length === updatedFiles.length) {
                 const areEqual = existingFiles.every((file, index) => file.path === updatedFiles[index].path &&
-                    file.file.sha === updatedFiles[index].file.sha);
+                    file.sha === updatedFiles[index].file.sha);
                 if (areEqual) {
                     core.info("Documentation haven't been changed, skipping docs pull-request");
                     return;
@@ -211,10 +201,31 @@ https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
         }
         catch (error) {
             core.error('An unexpected error has ocurred');
-            core.error(error);
             core.setFailed(error);
-            throw error;
         }
+    });
+}
+function getTreeRecursive(tree, getTree, prefix) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const result = [];
+        const prefixParts = prefix.split('/');
+        const [treeHead] = prefixParts;
+        for (const leaf of tree) {
+            if (leaf.type === 'tree') {
+                if (treeHead && leaf.path !== treeHead) {
+                    continue;
+                }
+                // eslint-disable-next-line no-await-in-loop
+                const subTree = yield getTree(leaf.sha);
+                // eslint-disable-next-line no-await-in-loop
+                const completeSubTree = yield getTreeRecursive(subTree, getTree, prefixParts.slice(1).join('/'));
+                for (const subleaf of completeSubTree) {
+                    result.push(Object.assign(Object.assign({}, subleaf), { path: `${leaf.path}/${subleaf.path}` }));
+                }
+            }
+            result.push(leaf);
+        }
+        return result;
     });
 }
 run();

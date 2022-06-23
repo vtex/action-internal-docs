@@ -50,13 +50,13 @@ async function run(): Promise<void> {
     const product = core.getInput('docs-product', { required: true })
 
     const upstreamRepoOwner =
-      core.getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
+      core.getInput('repo-owner') || INTERNAL_DOCS_REPO_OWNER
 
     const upstreamRepoName =
-      core.getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
+      core.getInput('repo-name') || INTERNAL_DOCS_REPO_NAME
 
     const upstreamRepoBranch =
-      core.getInput('repo-branch') ?? INTERNAL_DOCS_DEFAULT_BRANCH
+      core.getInput('repo-branch') || INTERNAL_DOCS_DEFAULT_BRANCH
 
     const autoMergeEnabled = core.getInput('auto-merge')
 
@@ -81,22 +81,27 @@ async function run(): Promise<void> {
       owner: upstreamRepoOwner,
       repo: upstreamRepoName,
       tree_sha: baseBranchRef.object.sha,
-      recursive: 'true',
     })
+
+    const completeTree = await getTreeRecursive(
+      baseBranchTree.tree,
+      (sha) =>
+        octokitClient.git
+          .getTree({
+            owner: upstreamRepoOwner,
+            repo: upstreamRepoName,
+            tree_sha: sha,
+          })
+          .then(({ data }) => data.tree),
+      `docs/${product}`
+    )
 
     const existingFiles = (
       await Promise.all(
-        baseBranchTree.tree
-          .filter((leaf) => leaf.path?.startsWith(`docs/${product}`))
-          .map(async ({ path, sha }) => {
-            const { data: fileBlob } = await octokitClient.git.getBlob({
-              owner: upstreamRepoOwner,
-              repo: upstreamRepoName,
-              file_sha: sha!,
-            })
-
-            return { path: path!, file: fileBlob }
-          })
+        completeTree.filter(
+          (leaf) =>
+            leaf.path?.startsWith(`docs/${product}`) && leaf.type === 'blob'
+        )
       )
     ).sort(sortByPath)
 
@@ -121,22 +126,12 @@ async function run(): Promise<void> {
       )
     ).sort(sortByPath)
 
-    // eslint-disable-next-line no-console
-    console.log(
-      baseBranchTree.tree,
-      updatedFiles.map((file) => ({
-        path: file.path,
-        sha: file.file.sha,
-        content: file.file.content,
-      }))
-    )
-
     // Check if diff is equal
     if (existingFiles.length === updatedFiles.length) {
       const areEqual = existingFiles.every(
         (file, index) =>
           file.path === updatedFiles[index].path &&
-          file.file.sha === updatedFiles[index].file.sha
+          file.sha === updatedFiles[index].file.sha
       )
 
       if (areEqual) {
@@ -214,11 +209,52 @@ https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
     }
   } catch (error) {
     core.error('An unexpected error has ocurred')
-    core.error(error)
 
     core.setFailed(error)
-    throw error
   }
+}
+
+type TreeNode = {
+  sha: string
+  path: string
+  type: string
+}
+
+async function getTreeRecursive(
+  tree: Array<Partial<TreeNode>>,
+  getTree: (sha: string) => Promise<Array<Partial<TreeNode>>>,
+  prefix: string
+): Promise<TreeNode[]> {
+  const result = []
+  const prefixParts = prefix.split('/')
+
+  const [treeHead] = prefixParts
+
+  for (const leaf of tree) {
+    if (leaf.type === 'tree') {
+      if (treeHead && leaf.path !== treeHead) {
+        continue
+      }
+
+      // eslint-disable-next-line no-await-in-loop
+      const subTree = await getTree(leaf.sha!)
+
+      // eslint-disable-next-line no-await-in-loop
+      const completeSubTree = await getTreeRecursive(
+        subTree,
+        getTree,
+        prefixParts.slice(1).join('/')
+      )
+
+      for (const subleaf of completeSubTree) {
+        result.push({ ...subleaf, path: `${leaf.path}/${subleaf.path}` })
+      }
+    }
+
+    result.push(leaf as TreeNode)
+  }
+
+  return result
 }
 
 run()

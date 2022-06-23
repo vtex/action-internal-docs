@@ -71,28 +71,8 @@ async function run(): Promise<void> {
       ownRepo: github.context.repo,
     })
 
-    const { data: baseBranchRef } = await octokitClient.git.getRef({
-      owner: upstreamRepoOwner,
-      repo: upstreamRepoName,
-      ref: `heads/${upstreamRepoBranch}`,
-    })
-
-    const { data: baseBranchTree } = await octokitClient.git.getTree({
-      owner: upstreamRepoOwner,
-      repo: upstreamRepoName,
-      tree_sha: baseBranchRef.object.sha,
-    })
-
-    const completeTree = await getTreeRecursive(
-      baseBranchTree.tree,
-      (sha) =>
-        octokitClient.git
-          .getTree({
-            owner: upstreamRepoOwner,
-            repo: upstreamRepoName,
-            tree_sha: sha,
-          })
-          .then(({ data }) => data.tree),
+    const completeTree = await kit.getCompleteTree(
+      upstreamRepoBranch,
       `docs/${product}`
     )
 
@@ -212,49 +192,6 @@ https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
 
     core.setFailed(error)
   }
-}
-
-type TreeNode = {
-  sha: string
-  path: string
-  type: string
-}
-
-async function getTreeRecursive(
-  tree: Array<Partial<TreeNode>>,
-  getTree: (sha: string) => Promise<Array<Partial<TreeNode>>>,
-  prefix: string
-): Promise<TreeNode[]> {
-  const result = []
-  const prefixParts = prefix.split('/')
-
-  const [treeHead] = prefixParts
-
-  for (const leaf of tree) {
-    if (leaf.type === 'tree') {
-      if (treeHead && leaf.path !== treeHead) {
-        continue
-      }
-
-      // eslint-disable-next-line no-await-in-loop
-      const subTree = await getTree(leaf.sha!)
-
-      // eslint-disable-next-line no-await-in-loop
-      const completeSubTree = await getTreeRecursive(
-        subTree,
-        getTree,
-        prefixParts.slice(1).join('/')
-      )
-
-      for (const subleaf of completeSubTree) {
-        result.push({ ...subleaf, path: `${leaf.path}/${subleaf.path}` })
-      }
-    }
-
-    result.push(leaf as TreeNode)
-  }
-
-  return result
 }
 
 run()

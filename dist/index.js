@@ -100,23 +100,7 @@ function run() {
                 },
                 ownRepo: github.context.repo,
             });
-            const { data: baseBranchRef } = yield octokitClient.git.getRef({
-                owner: upstreamRepoOwner,
-                repo: upstreamRepoName,
-                ref: `heads/${upstreamRepoBranch}`,
-            });
-            const { data: baseBranchTree } = yield octokitClient.git.getTree({
-                owner: upstreamRepoOwner,
-                repo: upstreamRepoName,
-                tree_sha: baseBranchRef.object.sha,
-            });
-            const completeTree = yield getTreeRecursive(baseBranchTree.tree, (sha) => octokitClient.git
-                .getTree({
-                owner: upstreamRepoOwner,
-                repo: upstreamRepoName,
-                tree_sha: sha,
-            })
-                .then(({ data }) => data.tree), `docs/${product}`);
+            const completeTree = yield kit.getCompleteTree(upstreamRepoBranch, `docs/${product}`);
             const existingFiles = (yield Promise.all(completeTree.filter((leaf) => { var _a; return ((_a = leaf.path) === null || _a === void 0 ? void 0 : _a.startsWith(`docs/${product}`)) && leaf.type === 'blob'; }))).sort(utils_1.sortByPath);
             const updatedFiles = (yield Promise.all(files
                 .map((file) => ({
@@ -203,29 +187,6 @@ https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
             core.error('An unexpected error has ocurred');
             core.setFailed(error);
         }
-    });
-}
-function getTreeRecursive(tree, getTree, prefix) {
-    return __awaiter(this, void 0, void 0, function* () {
-        const result = [];
-        const prefixParts = prefix.split('/');
-        const [treeHead] = prefixParts;
-        for (const leaf of tree) {
-            if (leaf.type === 'tree') {
-                if (treeHead && leaf.path !== treeHead) {
-                    continue;
-                }
-                // eslint-disable-next-line no-await-in-loop
-                const subTree = yield getTree(leaf.sha);
-                // eslint-disable-next-line no-await-in-loop
-                const completeSubTree = yield getTreeRecursive(subTree, getTree, prefixParts.slice(1).join('/'));
-                for (const subleaf of completeSubTree) {
-                    result.push(Object.assign(Object.assign({}, subleaf), { path: `${leaf.path}/${subleaf.path}` }));
-                }
-            }
-            result.push(leaf);
-        }
-        return result;
     });
 }
 run();
@@ -324,6 +285,43 @@ Closing pull request, reason: ${reason}
 `.trim() }));
             yield this.client.pulls.update(Object.assign(Object.assign({}, this.upstreamRepo), { pull_number: pullNumber, state: 'closed' }));
             yield this.client.git.deleteRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `head/${head}` }));
+        });
+    }
+    getCompleteTree(branchName, pathPrefix) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { data: branchRef } = yield this.client.git.getRef(Object.assign(Object.assign({}, this.upstreamRepo), { ref: `heads/${branchName}` }));
+            const branchTree = yield this.getTreeFromSha(branchRef.object.sha);
+            const completeTree = yield this.getTreeRecursive(branchTree, pathPrefix);
+            return completeTree;
+        });
+    }
+    getTreeRecursive(tree, prefix) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const result = [];
+            const prefixParts = prefix.split('/');
+            const [treeHead] = prefixParts;
+            for (const leaf of tree) {
+                if (leaf.type === 'tree') {
+                    if (treeHead && leaf.path !== treeHead) {
+                        continue;
+                    }
+                    // eslint-disable-next-line no-await-in-loop
+                    const subTree = yield this.getTreeFromSha(leaf.sha);
+                    // eslint-disable-next-line no-await-in-loop
+                    const completeSubTree = yield this.getTreeRecursive(subTree, prefixParts.slice(1).join('/'));
+                    for (const subleaf of completeSubTree) {
+                        result.push(Object.assign(Object.assign({}, subleaf), { path: `${leaf.path}/${subleaf.path}` }));
+                    }
+                }
+                result.push(leaf);
+            }
+            return result;
+        });
+    }
+    getTreeFromSha(sha) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const { data: { tree }, } = yield this.client.git.getTree(Object.assign(Object.assign({}, this.upstreamRepo), { tree_sha: sha }));
+            return tree;
         });
     }
 }

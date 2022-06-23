@@ -11,6 +11,12 @@ interface Repo {
   repo: string
 }
 
+type TreeNode = {
+  sha: string
+  path: string
+  type: string
+}
+
 export class TechDocsKit {
   private client: Octo
   private upstreamRepo: Repo
@@ -194,5 +200,64 @@ Closing pull request, reason: ${reason}
       ...this.upstreamRepo,
       ref: `head/${head}`,
     })
+  }
+
+  public async getCompleteTree(branchName: string, pathPrefix: string) {
+    const { data: branchRef } = await this.client.git.getRef({
+      ...this.upstreamRepo,
+      ref: `heads/${branchName}`,
+    })
+
+    const branchTree = await this.getTreeFromSha(branchRef.object.sha)
+
+    const completeTree = await this.getTreeRecursive(branchTree, pathPrefix)
+
+    return completeTree
+  }
+
+  private async getTreeRecursive(
+    tree: Array<Partial<TreeNode>>,
+    prefix: string
+  ): Promise<TreeNode[]> {
+    const result = []
+    const prefixParts = prefix.split('/')
+
+    const [treeHead] = prefixParts
+
+    for (const leaf of tree) {
+      if (leaf.type === 'tree') {
+        if (treeHead && leaf.path !== treeHead) {
+          continue
+        }
+
+        // eslint-disable-next-line no-await-in-loop
+        const subTree = await this.getTreeFromSha(leaf.sha!)
+
+        // eslint-disable-next-line no-await-in-loop
+        const completeSubTree = await this.getTreeRecursive(
+          subTree,
+          prefixParts.slice(1).join('/')
+        )
+
+        for (const subleaf of completeSubTree) {
+          result.push({ ...subleaf, path: `${leaf.path}/${subleaf.path}` })
+        }
+      }
+
+      result.push(leaf as TreeNode)
+    }
+
+    return result
+  }
+
+  private async getTreeFromSha(sha: string) {
+    const {
+      data: { tree },
+    } = await this.client.git.getTree({
+      ...this.upstreamRepo,
+      tree_sha: sha,
+    })
+
+    return tree
   }
 }

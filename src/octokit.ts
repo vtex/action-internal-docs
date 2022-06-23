@@ -1,5 +1,6 @@
 import type { GitHub } from '@actions/github/lib/utils'
 import type { RestEndpointMethodTypes } from '@octokit/rest'
+import short from 'short-uuid'
 
 type Octo = InstanceType<typeof GitHub>
 
@@ -45,12 +46,12 @@ export class TechDocsKit {
     return `${this.upstreamRepo.owner}/${this.upstreamRepo.repo}`
   }
 
-  public getNewUpstreamBranchName(sha1: string) {
+  public getNewUpstreamBranchName() {
     const { owner, repo } = this.ownRepo
 
-    const shortSha1 = sha1.slice(0, SHORT_SHA_LENGTH)
+    const shortId = short.generate()
 
-    return `docs-${owner}-${repo}-${shortSha1}`
+    return `docs-${owner}-${repo}-${shortId}`
   }
 
   public async createBlobForFile(

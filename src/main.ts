@@ -137,7 +137,7 @@ async function run(): Promise<void> {
       }
     }
 
-    const branchToPush = kit.getNewUpstreamBranchName(github.context.sha)
+    const branchToPush = kit.getNewUpstreamBranchName()
 
     await kit.createBranchAndCommit({
       message: `

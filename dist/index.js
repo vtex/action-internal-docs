@@ -110,6 +110,7 @@ function run() {
                 owner: upstreamRepoOwner,
                 repo: upstreamRepoName,
                 tree_sha: baseBranchRef.object.sha,
+                recursive: 'true',
             });
             const existingFiles = (yield Promise.all(baseBranchTree.tree
                 .filter((leaf) => { var _a; return (_a = leaf.path) === null || _a === void 0 ? void 0 : _a.startsWith(`docs/${product}`); })
@@ -134,8 +135,14 @@ function run() {
                 else {
                     blob = yield kit.createBlobForFile({ content });
                 }
-                return { path, file: blob };
+                return { path, file: Object.assign(Object.assign({}, blob), { content }) };
             })))).sort(utils_1.sortByPath);
+            // eslint-disable-next-line no-console
+            console.log(baseBranchTree.tree, updatedFiles.map((file) => ({
+                path: file.path,
+                sha: file.file.sha,
+                content: file.file.content,
+            })));
             // Check if diff is equal
             if (existingFiles.length === updatedFiles.length) {
                 const areEqual = existingFiles.every((file, index) => file.path === updatedFiles[index].path &&

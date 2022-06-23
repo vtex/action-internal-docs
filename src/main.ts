@@ -81,6 +81,7 @@ async function run(): Promise<void> {
       owner: upstreamRepoOwner,
       repo: upstreamRepoName,
       tree_sha: baseBranchRef.object.sha,
+      recursive: 'true',
     })
 
     const existingFiles = (
@@ -115,10 +116,20 @@ async function run(): Promise<void> {
               blob = await kit.createBlobForFile({ content })
             }
 
-            return { path, file: blob }
+            return { path, file: { ...blob, content } }
           })
       )
     ).sort(sortByPath)
+
+    // eslint-disable-next-line no-console
+    console.log(
+      baseBranchTree.tree,
+      updatedFiles.map((file) => ({
+        path: file.path,
+        sha: file.file.sha,
+        content: file.file.content,
+      }))
+    )
 
     // Check if diff is equal
     if (existingFiles.length === updatedFiles.length) {

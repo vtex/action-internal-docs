@@ -1,3 +1,8 @@
+import 'dotenv/config'
+import os from 'os'
+import { mkdtemp } from 'fs/promises'
+import path from 'path'
+
 import * as github from '@actions/github'
 import * as core from '@actions/core'
 import * as fs from 'fs-extra'
@@ -16,23 +21,48 @@ import { sortByPath } from './utils'
 async function run(): Promise<void> {
   const ref = core.getInput('ref')
 
-  if (ref) {
-    core.info(`Switching to ref "${ref}"`)
+  let docsFolder = DOCS_FOLDER
 
-    await exec('git', ['fetch', 'origin', ref], { silent: true })
-    await exec('git', ['checkout', ref], { silent: true })
+  if (ref && ref !== process.env.GITHUB_REF_NAME) {
+    core.info(`Using git ref ${ref}`)
+
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'docs-repo'))
+
+    const serverUrl = new URL(
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+      process.env.GITHUB_SERVER_URL || 'https://github.com'
+    )
+
+    const encodedOnwer = encodeURIComponent(github.context.repo.owner)
+    const encodedRepo = encodeURIComponent(github.context.repo.repo)
+
+    const remoteUrl = `${serverUrl.origin}/${encodedOnwer}/${encodedRepo}.git`
+
+    await core.group(
+      `Creating local repository copy from ref "${ref}"`,
+      async () => {
+        await exec('git', ['init'], { cwd: tempDir })
+        await exec('git', ['remote', 'add', 'origin', remoteUrl], {
+          cwd: tempDir,
+        })
+        await exec('git', ['fetch', 'origin', ref], { cwd: tempDir })
+        await exec('git', ['checkout', ref], { cwd: tempDir })
+      }
+    )
+
+    docsFolder = path.join(tempDir, DOCS_FOLDER)
   }
 
-  if (!fs.existsSync(DOCS_FOLDER)) {
+  if (!fs.existsSync(docsFolder)) {
     core.info(`Folder ${DOCS_FOLDER} does not exist, exiting.`)
 
     return
   }
 
   try {
-    const files = (await recursive(DOCS_FOLDER)).map((file) => {
+    const files = (await recursive(docsFolder)).map((file) => {
       return {
-        name: file,
+        name: path.relative(docsFolder, file),
         content:
           file.endsWith('png') ||
           file.endsWith('jpg') ||
@@ -92,16 +122,16 @@ async function run(): Promise<void> {
             path: `docs/${product}/${file.name.replace('docs/', '')}`,
             content: file.content,
           }))
-          .map(async ({ path, content }) => {
+          .map(async ({ path: filePath, content }) => {
             let blob
 
-            if (path.endsWith('png') || path.endsWith('jpg')) {
+            if (filePath.endsWith('png') || filePath.endsWith('jpg')) {
               blob = await kit.createBlobForFile({ content }, 'base64')
             } else {
               blob = await kit.createBlobForFile({ content })
             }
 
-            return { path, file: { ...blob, content } }
+            return { path: filePath, file: { ...blob, content } }
           })
       )
     ).sort(sortByPath)

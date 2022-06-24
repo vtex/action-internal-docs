@@ -1,11 +1,11 @@
 import 'dotenv/config'
 import os from 'os'
 import { mkdtemp } from 'fs/promises'
+import * as fs from 'fs'
 import path from 'path'
 
 import * as github from '@actions/github'
 import * as core from '@actions/core'
-import * as fs from 'fs-extra'
 import recursive from 'recursive-readdir'
 import { exec } from '@actions/exec'
 

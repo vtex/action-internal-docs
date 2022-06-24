@@ -6,8 +6,10 @@
     "outDir": "./lib",
     "strict": true,
     "noImplicitAny": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "allowJs": true,
+    "checkJs": true
   },
   "include": [".eslintrc.js", "./**/*.js", "./**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "lib", "dist"]
 }

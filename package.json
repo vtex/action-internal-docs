@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "Action to automatically publish your documentation to VTEX Internal Docs",
-  "main": "lib/main.js",
+  "main": "lib/src/main.js",
   "scripts": {
     "build:ts": "tsc",
     "build:ncc": "ncc build --source-map --license licenses.txt",
@@ -29,6 +29,7 @@
     "@actions/exec": "^1.0.4",
     "@actions/github": "^4.0.0",
     "@actions/http-client": "^1.0.9",
+    "@actions/io": "^1.1.2",
     "@types/recursive-readdir": "^2.2.0",
     "dotenv": "^16.0.1",
     "recursive-readdir": "^2.2.2",

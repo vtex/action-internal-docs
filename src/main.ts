@@ -1,23 +1,35 @@
-import crypto from 'crypto'
-
-import { setFailed, getInput } from '@actions/core'
 import * as github from '@actions/github'
+import * as core from '@actions/core'
 import * as fs from 'fs-extra'
 import recursive from 'recursive-readdir'
+import { exec } from '@actions/exec'
 
+import { TechDocsKit } from './octokit'
 import {
-  createBlobForFile,
-  createBranch,
-  createNewCommit,
-  createNewTree,
-  getCurrentCommit,
-  mergePullRequest,
-  setBranchRefToCommit,
-} from './octokit'
+  INTERNAL_DOCS_REPO_NAME,
+  INTERNAL_DOCS_REPO_OWNER,
+  INTERNAL_DOCS_DEFAULT_BRANCH,
+  DOCS_FOLDER,
+} from './constants'
 
 async function run(): Promise<void> {
+  const ref = core.getInput('ref')
+
+  if (ref) {
+    core.info(`Switching to ref "${ref}"`)
+
+    await exec('git', ['fetch', 'origin', ref], { silent: true })
+    await exec('git', ['checkout', ref], { silent: true })
+  }
+
+  if (!fs.existsSync(DOCS_FOLDER)) {
+    core.info(`Folder ${DOCS_FOLDER} does not exist, exiting.`)
+
+    return
+  }
+
   try {
-    const files = (await recursive('./docs')).map((file) => {
+    const files = (await recursive(DOCS_FOLDER)).map((file) => {
       return {
         name: file,
         content:
@@ -33,27 +45,27 @@ async function run(): Promise<void> {
       }
     })
 
-    const client = github.getOctokit(getInput('repo-token'))
-    const product = getInput('docs-product', { required: true })
+    const repoToken = core.getInput('repo-token')
+    const product = core.getInput('docs-product', { required: true })
 
-    const owner = 'vtex'
-    const repo = 'internal-docs'
-    const defaultBranch = 'main'
+    const upstreamRepoOwner =
+      core.getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
 
-    const currentDate = new Date().valueOf().toString()
-    const random = Math.random().toString()
+    const upstreamRepoName =
+      core.getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
 
-    const hash = crypto
-      .createHash('sha1')
-      .update(currentDate + random)
-      .digest('hex')
+    const upstreamRepoBranch =
+      core.getInput('repo-branch') ?? INTERNAL_DOCS_DEFAULT_BRANCH
 
-    const branchToPush = `docs-${hash}`
+    const autoMergeEnabled = core.getInput('auto-merge')
 
-    const currentCommit = await getCurrentCommit(client, {
-      owner,
-      repo,
-      branch: defaultBranch,
+    const kit = new TechDocsKit({
+      client: github.getOctokit(repoToken),
+      upstreamRepo: {
+        owner: upstreamRepoOwner,
+        repo: upstreamRepoName,
+      },
+      ownRepo: github.context.repo,
     })
 
     const paths = files.map(
@@ -65,57 +77,108 @@ async function run(): Promise<void> {
         const { content } = file
 
         if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
-          return createBlobForFile(client, { owner, repo, content }, 'base64')
+          return kit.createBlobForFile({ content }, 'base64')
         }
 
-        return createBlobForFile(client, { owner, repo, content })
+        return kit.createBlobForFile({ content })
       })
     )
 
-    const newTree = await createNewTree(client, {
-      owner,
-      repo,
+    core.debug(`Getting current commit for branch ${upstreamRepoBranch}`)
+
+    const currentCommit = await kit.getCurrentCommit({
+      branch: upstreamRepoBranch,
+    })
+
+    core.debug(
+      `Creating tree for paths with parent ${
+        currentCommit.treeSha
+      }\n${paths.join('\n')}`
+    )
+
+    const newTree = await kit.createNewTree({
       blobs,
       paths,
       parentTreeSha: currentCommit.treeSha,
     })
 
-    await createBranch(client, {
-      owner,
-      repo,
+    const branchToPush = kit.getNewUpstreamBranchName(github.context.sha)
+
+    core.debug(`Creating branch ${branchToPush}`)
+
+    await kit.createBranch({
       branch: branchToPush,
       parentSha: currentCommit.commitSha,
     })
 
-    const newCommit = await createNewCommit(client, {
-      owner,
-      repo,
-      message: `docs`,
+    core.debug(`Creating commit in tree ${newTree.sha}`)
+
+    const newCommit = await kit.createNewCommit({
+      message: `
+Documentation sync [from ${kit.ownRepoFormatted}]
+
+Automatic synchronization triggered via GitHub Action.
+This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
+`.trim(),
       treeSha: newTree.sha,
       currentCommitSha: currentCommit.commitSha,
     })
 
-    await setBranchRefToCommit(client, {
-      owner,
-      repo,
+    core.debug(`Set branch ref to commit ${newCommit.sha}`)
+
+    await kit.setBranchRefToCommit({
       branch: branchToPush,
       commitSha: newCommit.sha,
     })
 
-    const pull = (
-      await client.pulls.create({
-        owner,
-        repo,
-        title: `Docs incoming`,
-        head: branchToPush,
-        base: defaultBranch,
-        body: 'docs incoming',
-      })
-    ).data
+    core.debug('Creating pull-request for branch')
 
-    await mergePullRequest(client, { owner, repo, pullNumber: pull.number })
+    const pull = await kit.createPullRequest({
+      title: `Docs sync (${kit.ownRepoFormatted})`,
+      head: branchToPush,
+      base: upstreamRepoBranch,
+      body: `
+Documentation synchronization from [GitHub action]
+
+This update is refers to the following commit:
+
+https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
+
+[GitHub action]: http://github.com/vtex/action-internal-docs
+`.trim(),
+    })
+
+    core.info(
+      `Created pull-request https://github.com/${kit.upstreamRepoFormatted}/pull/${pull.number}`
+    )
+
+    core.setOutput('pull-request-number', pull.number)
+
+    try {
+      core.debug('Trying to automatically merge pull-request')
+
+      if (autoMergeEnabled === 'true') {
+        await kit.mergePullRequest({
+          pullNumber: pull.number,
+        })
+      } else {
+        core.info('Auto merge skipped due to action configuration')
+      }
+    } catch (error) {
+      core.debug('Pull-request auto merge failed')
+      core.debug(error)
+
+      await kit.closePullRequestAndDeleteBranch({
+        pullNumber: pull.number,
+        head: branchToPush,
+        reason: `Failed to merge pull-request to branch "${upstreamRepoBranch}"`,
+      })
+    }
   } catch (error) {
-    setFailed(error)
+    core.error('An unexpected error has ocurred')
+    core.error(error)
+
+    core.setFailed(error)
     throw error
   }
 }

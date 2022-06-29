@@ -1,6 +1,11 @@
+import 'dotenv/config'
+import os from 'os'
+import { mkdtemp } from 'fs/promises'
+import * as fs from 'fs'
+import path from 'path'
+
 import * as github from '@actions/github'
 import * as core from '@actions/core'
-import * as fs from 'fs-extra'
 import recursive from 'recursive-readdir'
 import { exec } from '@actions/exec'
 
@@ -11,27 +16,53 @@ import {
   INTERNAL_DOCS_DEFAULT_BRANCH,
   DOCS_FOLDER,
 } from './constants'
+import { sortByPath } from './utils'
 
 async function run(): Promise<void> {
   const ref = core.getInput('ref')
 
-  if (ref) {
-    core.info(`Switching to ref "${ref}"`)
+  let docsFolder = DOCS_FOLDER
 
-    await exec('git', ['fetch', 'origin', ref], { silent: true })
-    await exec('git', ['checkout', ref], { silent: true })
+  if (ref && ref !== process.env.GITHUB_REF_NAME) {
+    core.info(`Using git ref ${ref}`)
+
+    const tempDir = await mkdtemp(path.join(os.tmpdir(), 'docs-repo'))
+
+    const serverUrl = new URL(
+      // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing
+      process.env.GITHUB_SERVER_URL || 'https://github.com'
+    )
+
+    const encodedOnwer = encodeURIComponent(github.context.repo.owner)
+    const encodedRepo = encodeURIComponent(github.context.repo.repo)
+
+    const remoteUrl = `${serverUrl.origin}/${encodedOnwer}/${encodedRepo}.git`
+
+    await core.group(
+      `Creating local repository copy from ref "${ref}"`,
+      async () => {
+        await exec('git', ['init'], { cwd: tempDir })
+        await exec('git', ['remote', 'add', 'origin', remoteUrl], {
+          cwd: tempDir,
+        })
+        await exec('git', ['fetch', 'origin', ref], { cwd: tempDir })
+        await exec('git', ['checkout', ref], { cwd: tempDir })
+      }
+    )
+
+    docsFolder = path.join(tempDir, DOCS_FOLDER)
   }
 
-  if (!fs.existsSync(DOCS_FOLDER)) {
+  if (!fs.existsSync(docsFolder)) {
     core.info(`Folder ${DOCS_FOLDER} does not exist, exiting.`)
 
     return
   }
 
   try {
-    const files = (await recursive(DOCS_FOLDER)).map((file) => {
+    const files = (await recursive(docsFolder)).map((file) => {
       return {
-        name: file,
+        name: path.relative(docsFolder, file),
         content:
           file.endsWith('png') ||
           file.endsWith('jpg') ||
@@ -49,18 +80,20 @@ async function run(): Promise<void> {
     const product = core.getInput('docs-product', { required: true })
 
     const upstreamRepoOwner =
-      core.getInput('repo-owner') ?? INTERNAL_DOCS_REPO_OWNER
+      core.getInput('repo-owner') || INTERNAL_DOCS_REPO_OWNER
 
     const upstreamRepoName =
-      core.getInput('repo-name') ?? INTERNAL_DOCS_REPO_NAME
+      core.getInput('repo-name') || INTERNAL_DOCS_REPO_NAME
 
     const upstreamRepoBranch =
-      core.getInput('repo-branch') ?? INTERNAL_DOCS_DEFAULT_BRANCH
+      core.getInput('repo-branch') || INTERNAL_DOCS_DEFAULT_BRANCH
 
     const autoMergeEnabled = core.getInput('auto-merge')
 
+    const octokitClient = github.getOctokit(repoToken)
+
     const kit = new TechDocsKit({
-      client: github.getOctokit(repoToken),
+      client: octokitClient,
       upstreamRepo: {
         owner: upstreamRepoOwner,
         repo: upstreamRepoName,
@@ -68,68 +101,78 @@ async function run(): Promise<void> {
       ownRepo: github.context.repo,
     })
 
-    const paths = files.map(
-      (file) => `docs/${product}/${file.name.replace('docs/', '')}`
+    const completeTree = await kit.getCompleteTree(
+      upstreamRepoBranch,
+      `docs/${product}`
     )
 
-    const blobs = await Promise.all(
-      files.map(async (file) => {
-        const { content } = file
+    const existingFiles = (
+      await Promise.all(
+        completeTree.filter(
+          (leaf) =>
+            leaf.path?.startsWith(`docs/${product}`) && leaf.type === 'blob'
+        )
+      )
+    ).sort(sortByPath)
 
-        if (file.name.endsWith('png') || file.name.endsWith('jpg')) {
-          return kit.createBlobForFile({ content }, 'base64')
-        }
+    const updatedFiles = (
+      await Promise.all(
+        files
+          .map((file) => ({
+            path: `docs/${product}/${file.name.replace('docs/', '')}`,
+            content: file.content,
+          }))
+          .map(async ({ path: filePath, content }) => {
+            let blob
 
-        return kit.createBlobForFile({ content })
-      })
-    )
+            if (filePath.endsWith('png') || filePath.endsWith('jpg')) {
+              blob = await kit.createBlobForFile({ content }, 'base64')
+            } else {
+              blob = await kit.createBlobForFile({ content })
+            }
 
-    core.debug(`Getting current commit for branch ${upstreamRepoBranch}`)
+            return { path: filePath, file: { ...blob, content } }
+          })
+      )
+    ).sort(sortByPath)
 
-    const currentCommit = await kit.getCurrentCommit({
-      branch: upstreamRepoBranch,
-    })
+    // Check if diff is equal
+    if (existingFiles.length === updatedFiles.length) {
+      const areEqual = existingFiles.every(
+        (file, index) =>
+          file.path === updatedFiles[index].path &&
+          file.sha === updatedFiles[index].file.sha
+      )
 
-    core.debug(
-      `Creating tree for paths with parent ${
-        currentCommit.treeSha
-      }\n${paths.join('\n')}`
-    )
+      if (areEqual) {
+        core.info(
+          "Documentation haven't been changed, skipping docs pull-request"
+        )
 
-    const newTree = await kit.createNewTree({
-      blobs,
-      paths,
-      parentTreeSha: currentCommit.treeSha,
-    })
+        return
+      }
+    }
 
-    const branchToPush = kit.getNewUpstreamBranchName(github.context.sha)
+    const branchToPush = kit.getNewUpstreamBranchName()
 
-    core.debug(`Creating branch ${branchToPush}`)
-
-    await kit.createBranch({
-      branch: branchToPush,
-      parentSha: currentCommit.commitSha,
-    })
-
-    core.debug(`Creating commit in tree ${newTree.sha}`)
-
-    const newCommit = await kit.createNewCommit({
-      message: `
+    try {
+      await kit.createBranchAndCommit({
+        message: `
 Documentation sync [from ${kit.ownRepoFormatted}]
 
 Automatic synchronization triggered via GitHub Action.
 This sync refers to the commit https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
 `.trim(),
-      treeSha: newTree.sha,
-      currentCommitSha: currentCommit.commitSha,
-    })
+        baseBranch: upstreamRepoBranch,
+        branchName: branchToPush,
+        files: updatedFiles,
+      })
+    } catch (err) {
+      core.error(`Failed to create and push commits to branch ${branchToPush}`)
+      core.setFailed(err)
 
-    core.debug(`Set branch ref to commit ${newCommit.sha}`)
-
-    await kit.setBranchRefToCommit({
-      branch: branchToPush,
-      commitSha: newCommit.sha,
-    })
+      return
+    }
 
     core.debug('Creating pull-request for branch')
 
@@ -176,10 +219,8 @@ https://github.com/${kit.ownRepoFormatted}/commit/${github.context.sha}
     }
   } catch (error) {
     core.error('An unexpected error has ocurred')
-    core.error(error)
 
     core.setFailed(error)
-    throw error
   }
 }
 

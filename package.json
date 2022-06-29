@@ -3,14 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "description": "Action to automatically publish your documentation to VTEX Internal Docs",
-  "main": "lib/main.js",
+  "main": "lib/src/main.js",
   "scripts": {
     "build:ts": "tsc",
     "build:ncc": "ncc build --source-map --license licenses.txt",
     "build": "run-s build:ts build:ncc",
+    "build:watch": "concurrently \"npm:watch-ts\" \"npm:watch-ncc\"",
     "lint": "eslint --ext ts,js .",
     "test": "jest",
-    "prepare": "husky install"
+    "prepare": "husky install",
+    "watch-ts": "tsc --watch --preserveWatchOutput",
+    "watch-ncc": "yarn build:ncc --watch"
   },
   "repository": {
     "type": "git",
@@ -26,19 +29,21 @@
     "@actions/exec": "^1.0.4",
     "@actions/github": "^4.0.0",
     "@actions/http-client": "^1.0.9",
+    "@actions/io": "^1.1.2",
     "@types/recursive-readdir": "^2.2.0",
-    "fs-extra": "^9.1.0",
-    "recursive-readdir": "^2.2.2"
+    "dotenv": "^16.0.1",
+    "recursive-readdir": "^2.2.2",
+    "short-uuid": "^4.2.0"
   },
   "devDependencies": {
     "@octokit/rest": "^18.3.2",
     "@octokit/types": "^6.12.0",
-    "@types/fs-extra": "^9.0.8",
     "@types/jest": "^26.0.20",
-    "@types/node": "^14.14.31",
+    "@types/node": "^18.0.0",
     "@typescript-eslint/parser": "^5.29.0",
     "@vercel/ncc": "^0.34.0",
     "@vtex/prettier-config": "^1.0.0",
+    "concurrently": "^7.2.2",
     "eslint": "^8.18.0",
     "eslint-config-vtex": "^15.0.1",
     "husky": "^8.0.1",

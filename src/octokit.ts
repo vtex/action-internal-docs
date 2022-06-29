@@ -1,14 +1,20 @@
 import type { GitHub } from '@actions/github/lib/utils'
 import type { RestEndpointMethodTypes } from '@octokit/rest'
+import short from 'short-uuid'
 
 type Octo = InstanceType<typeof GitHub>
 
-const DEFAULT_BRANCH = 'main'
 const SHORT_SHA_LENGTH = 8
 
 interface Repo {
   owner: string
   repo: string
+}
+
+type TreeNode = {
+  sha: string
+  path: string
+  type: string
 }
 
 export class TechDocsKit {
@@ -46,34 +52,12 @@ export class TechDocsKit {
     return `${this.upstreamRepo.owner}/${this.upstreamRepo.repo}`
   }
 
-  public getNewUpstreamBranchName(sha1: string) {
+  public getNewUpstreamBranchName() {
     const { owner, repo } = this.ownRepo
 
-    const shortSha1 = sha1.slice(0, SHORT_SHA_LENGTH)
+    const shortId = short.generate()
 
-    return `docs-${owner}-${repo}-${shortSha1}`
-  }
-
-  public async getCurrentCommit({
-    branch = DEFAULT_BRANCH,
-  }: {
-    branch?: string
-  }) {
-    const { data: refData } = await this.client.git.getRef({
-      ...this.upstreamRepo,
-      ref: `heads/${branch}`,
-    })
-
-    const commitSha = refData.object.sha
-    const { data: commitData } = await this.client.git.getCommit({
-      ...this.upstreamRepo,
-      commit_sha: commitSha,
-    })
-
-    return {
-      commitSha,
-      treeSha: commitData.tree.sha,
-    }
+    return `docs-${owner}-${repo}-${shortId}`
   }
 
   public async createBlobForFile(
@@ -84,7 +68,6 @@ export class TechDocsKit {
     },
     encoding = 'utf-8'
   ) {
-    // const content = await getFileAsUTF8(filePath)
     const blobData = await this.client.git.createBlob({
       ...this.upstreamRepo,
       content,
@@ -94,86 +77,67 @@ export class TechDocsKit {
     return blobData.data
   }
 
-  public async createNewTree({
-    blobs,
-    paths,
-    parentTreeSha,
+  public async createBranchAndCommit({
+    message,
+    branchName,
+    baseBranch,
+    files,
   }: {
-    blobs: Array<
-      RestEndpointMethodTypes['git']['createBlob']['response']['data']
-    >
-    paths: string[]
-    parentTreeSha: string
+    message: string
+    branchName: string
+    baseBranch: string
+    files: Array<{
+      path: string
+      file: RestEndpointMethodTypes['git']['createBlob']['response']['data']
+    }>
   }) {
+    const { data: refData } = await this.client.git.getRef({
+      ...this.upstreamRepo,
+      ref: `heads/${baseBranch}`,
+    })
+
+    const commitSha = refData.object.sha
+
+    const {
+      data: {
+        tree: { sha: treeSha },
+      },
+    } = await this.client.git.getCommit({
+      ...this.upstreamRepo,
+      commit_sha: commitSha,
+    })
+
     const mode = '100644' as const
     const type = 'blob' as const
 
-    if (!blobs.length || blobs.length !== paths.length) {
-      throw new Error('You should provide the same number of blobs and paths')
-    }
-
-    const tree = blobs.map(({ sha }, index) => ({
-      path: paths[index],
+    const tree = files.map(({ path, file }) => ({
+      path,
       mode,
       type,
-      sha,
+      sha: file.sha,
     }))
 
-    const { data: treeData } = await this.client.git.createTree({
+    const {
+      data: { sha: newTreeSha },
+    } = await this.client.git.createTree({
       ...this.upstreamRepo,
       tree,
-      base_tree: parentTreeSha,
+      base_tree: treeSha,
     })
 
-    return treeData
-  }
-
-  public async createBranch({
-    branch,
-    parentSha,
-  }: {
-    branch: string
-    parentSha: string
-  }) {
-    const response = await this.client.git.createRef({
-      ...this.upstreamRepo,
-      ref: `refs/heads/${branch}`,
-      sha: parentSha,
-    })
-
-    return response.data.object.sha
-  }
-
-  public async createNewCommit({
-    message = 'Update to course',
-    treeSha,
-    currentCommitSha,
-  }: {
-    message?: string
-    treeSha: string
-    currentCommitSha: string
-  }) {
-    const { data: commitData } = await this.client.git.createCommit({
+    const {
+      data: { sha: newCommitSha },
+    } = await this.client.git.createCommit({
       ...this.upstreamRepo,
       message,
-      tree: treeSha,
-      parents: [currentCommitSha],
+      tree: newTreeSha,
+      parents: [commitSha],
     })
 
-    return commitData
-  }
-
-  public async setBranchRefToCommit({
-    branch = DEFAULT_BRANCH,
-    commitSha,
-  }: {
-    branch?: string
-    commitSha: string
-  }) {
-    return this.client.git.updateRef({
+    await this.client.git.createRef({
       ...this.upstreamRepo,
-      ref: `heads/${branch}`,
-      sha: commitSha,
+      ref: `refs/heads/${branchName}`,
+      sha: newCommitSha,
     })
   }
 
@@ -236,5 +200,64 @@ Closing pull request, reason: ${reason}
       ...this.upstreamRepo,
       ref: `head/${head}`,
     })
+  }
+
+  public async getCompleteTree(branchName: string, pathPrefix: string) {
+    const { data: branchRef } = await this.client.git.getRef({
+      ...this.upstreamRepo,
+      ref: `heads/${branchName}`,
+    })
+
+    const branchTree = await this.getTreeFromSha(branchRef.object.sha)
+
+    const completeTree = await this.getTreeRecursive(branchTree, pathPrefix)
+
+    return completeTree
+  }
+
+  private async getTreeRecursive(
+    tree: Array<Partial<TreeNode>>,
+    prefix: string
+  ): Promise<TreeNode[]> {
+    const result = []
+    const prefixParts = prefix.split('/')
+
+    const [treeHead] = prefixParts
+
+    for (const leaf of tree) {
+      if (leaf.type === 'tree') {
+        if (treeHead && leaf.path !== treeHead) {
+          continue
+        }
+
+        // eslint-disable-next-line no-await-in-loop
+        const subTree = await this.getTreeFromSha(leaf.sha!)
+
+        // eslint-disable-next-line no-await-in-loop
+        const completeSubTree = await this.getTreeRecursive(
+          subTree,
+          prefixParts.slice(1).join('/')
+        )
+
+        for (const subleaf of completeSubTree) {
+          result.push({ ...subleaf, path: `${leaf.path}/${subleaf.path}` })
+        }
+      }
+
+      result.push(leaf as TreeNode)
+    }
+
+    return result
+  }
+
+  private async getTreeFromSha(sha: string) {
+    const {
+      data: { tree },
+    } = await this.client.git.getTree({
+      ...this.upstreamRepo,
+      tree_sha: sha,
+    })
+
+    return tree
   }
 }

@@ -31,13 +31,13 @@ describe('TechDocs kit', () => {
 
   it('should use correct ref when deleting upstream branch', async () => {
     jest
-      .spyOn(octokitClient.issues, 'createComment')
+      .spyOn(octokitClient.rest.issues, 'createComment')
       .mockImplementation(() => Promise.resolve({} as any))
     jest
-      .spyOn(octokitClient.pulls, 'update')
+      .spyOn(octokitClient.rest.pulls, 'update')
       .mockImplementation(() => Promise.resolve({} as any))
     const deleteRefSpy = jest
-      .spyOn(octokitClient.git, 'deleteRef')
+      .spyOn(octokitClient.rest.git, 'deleteRef')
       .mockImplementation(() => Promise.resolve({} as any))
 
     await techDocsKit.closePullRequestAndDeleteBranch({

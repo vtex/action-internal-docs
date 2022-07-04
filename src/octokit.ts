@@ -68,7 +68,7 @@ export class TechDocsKit {
     },
     encoding = 'utf-8'
   ) {
-    const blobData = await this.client.git.createBlob({
+    const blobData = await this.client.rest.git.createBlob({
       ...this.upstreamRepo,
       content,
       encoding,
@@ -91,7 +91,7 @@ export class TechDocsKit {
       file: RestEndpointMethodTypes['git']['createBlob']['response']['data']
     }>
   }) {
-    const { data: refData } = await this.client.git.getRef({
+    const { data: refData } = await this.client.rest.git.getRef({
       ...this.upstreamRepo,
       ref: `heads/${baseBranch}`,
     })
@@ -102,7 +102,7 @@ export class TechDocsKit {
       data: {
         tree: { sha: treeSha },
       },
-    } = await this.client.git.getCommit({
+    } = await this.client.rest.git.getCommit({
       ...this.upstreamRepo,
       commit_sha: commitSha,
     })
@@ -119,7 +119,7 @@ export class TechDocsKit {
 
     const {
       data: { sha: newTreeSha },
-    } = await this.client.git.createTree({
+    } = await this.client.rest.git.createTree({
       ...this.upstreamRepo,
       tree,
       base_tree: treeSha,
@@ -127,14 +127,14 @@ export class TechDocsKit {
 
     const {
       data: { sha: newCommitSha },
-    } = await this.client.git.createCommit({
+    } = await this.client.rest.git.createCommit({
       ...this.upstreamRepo,
       message,
       tree: newTreeSha,
       parents: [commitSha],
     })
 
-    await this.client.git.createRef({
+    await this.client.rest.git.createRef({
       ...this.upstreamRepo,
       ref: `refs/heads/${branchName}`,
       sha: newCommitSha,
@@ -142,7 +142,7 @@ export class TechDocsKit {
   }
 
   public async mergePullRequest({ pullNumber }: { pullNumber: number }) {
-    const response = await this.client.pulls.merge({
+    const response = await this.client.rest.pulls.merge({
       ...this.upstreamRepo,
       pull_number: pullNumber,
       merge_method: 'rebase',
@@ -162,7 +162,7 @@ export class TechDocsKit {
     head: string
     base: string
   }) {
-    const response = await this.client.pulls.create({
+    const response = await this.client.rest.pulls.create({
       ...this.upstreamRepo,
       title,
       head,
@@ -182,7 +182,7 @@ export class TechDocsKit {
     head: string
     reason: string
   }) {
-    await this.client.issues.createComment({
+    await this.client.rest.issues.createComment({
       ...this.upstreamRepo,
       issue_number: pullNumber,
       body: `
@@ -190,20 +190,20 @@ Closing pull request, reason: ${reason}
 `.trim(),
     })
 
-    await this.client.pulls.update({
+    await this.client.rest.pulls.update({
       ...this.upstreamRepo,
       pull_number: pullNumber,
       state: 'closed',
     })
 
-    await this.client.git.deleteRef({
+    await this.client.rest.git.deleteRef({
       ...this.upstreamRepo,
       ref: `head/${head}`,
     })
   }
 
   public async getCompleteTree(branchName: string, pathPrefix: string) {
-    const { data: branchRef } = await this.client.git.getRef({
+    const { data: branchRef } = await this.client.rest.git.getRef({
       ...this.upstreamRepo,
       ref: `heads/${branchName}`,
     })
@@ -253,7 +253,7 @@ Closing pull request, reason: ${reason}
   private async getTreeFromSha(sha: string) {
     const {
       data: { tree },
-    } = await this.client.git.getTree({
+    } = await this.client.rest.git.getTree({
       ...this.upstreamRepo,
       tree_sha: sha,
     })

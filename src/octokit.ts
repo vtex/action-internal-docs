@@ -1,10 +1,7 @@
 import type { GitHub } from '@actions/github/lib/utils'
-import type { RestEndpointMethodTypes } from '@octokit/rest'
 import short from 'short-uuid'
 
 type Octo = InstanceType<typeof GitHub>
-
-const SHORT_SHA_LENGTH = 8
 
 interface Repo {
   owner: string
@@ -88,7 +85,7 @@ export class TechDocsKit {
     baseBranch: string
     files: Array<{
       path: string
-      file: RestEndpointMethodTypes['git']['createBlob']['response']['data']
+      sha: string | null
     }>
   }) {
     const { data: refData } = await this.client.rest.git.getRef({
@@ -110,11 +107,11 @@ export class TechDocsKit {
     const mode = '100644' as const
     const type = 'blob' as const
 
-    const tree = files.map(({ path, file }) => ({
+    const tree = files.map(({ path, sha }) => ({
       path,
       mode,
       type,
-      sha: file.sha,
+      sha,
     }))
 
     const {

@@ -121,7 +121,7 @@ function run() {
             });
             const completeTree = yield kit.getCompleteTree(upstreamRepoBranch, `docs/${product}`);
             const existingFiles = (yield Promise.all(completeTree.filter((leaf) => { var _a; return ((_a = leaf.path) === null || _a === void 0 ? void 0 : _a.startsWith(`docs/${product}`)) && leaf.type === 'blob'; }))).sort(utils_1.sortByPath);
-            const updatedFiles = (yield Promise.all(files
+            let updatedFiles = yield Promise.all(files
                 .map((file) => ({
                 path: `docs/${product}/${file.name.replace('docs/', '')}`,
                 content: file.content,
@@ -134,12 +134,21 @@ function run() {
                 else {
                     blob = yield kit.createBlobForFile({ content });
                 }
-                return { path: filePath, file: Object.assign(Object.assign({}, blob), { content }) };
-            })))).sort(utils_1.sortByPath);
+                return { path: filePath, sha: blob.sha };
+            })));
+            const deletedFiles = existingFiles.filter((file) => updatedFiles.findIndex((updatedFile) => file.path === updatedFile.path) === -1);
+            // Check for deleted files
+            if (deletedFiles.length > 0) {
+                updatedFiles.push(...deletedFiles.map((file) => ({
+                    path: file.path,
+                    sha: null,
+                })));
+            }
+            updatedFiles = updatedFiles.sort(utils_1.sortByPath);
             // Check if diff is equal
             if (existingFiles.length === updatedFiles.length) {
                 const areEqual = existingFiles.every((file, index) => file.path === updatedFiles[index].path &&
-                    file.sha === updatedFiles[index].file.sha);
+                    file.sha === updatedFiles[index].sha);
                 if (areEqual) {
                     core.info("Documentation haven't been changed, skipping docs pull-request");
                     return;
@@ -233,7 +242,6 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.TechDocsKit = void 0;
 const short_uuid_1 = __importDefault(__nccwpck_require__(533));
-const SHORT_SHA_LENGTH = 8;
 class TechDocsKit {
     constructor({ client, upstreamRepo, ownRepo, }) {
         this.client = client;
@@ -271,11 +279,11 @@ class TechDocsKit {
             const { data: { tree: { sha: treeSha }, }, } = yield this.client.rest.git.getCommit(Object.assign(Object.assign({}, this.upstreamRepo), { commit_sha: commitSha }));
             const mode = '100644';
             const type = 'blob';
-            const tree = files.map(({ path, file }) => ({
+            const tree = files.map(({ path, sha }) => ({
                 path,
                 mode,
                 type,
-                sha: file.sha,
+                sha,
             }));
             const { data: { sha: newTreeSha }, } = yield this.client.rest.git.createTree(Object.assign(Object.assign({}, this.upstreamRepo), { tree, base_tree: treeSha }));
             const { data: { sha: newCommitSha }, } = yield this.client.rest.git.createCommit(Object.assign(Object.assign({}, this.upstreamRepo), { message, tree: newTreeSha, parents: [commitSha] }));

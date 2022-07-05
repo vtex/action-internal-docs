@@ -8,7 +8,9 @@ pr_json=$(echo -E `gh pr view $pull_number --json title,body`)
 pr_title=$(echo "$pr_json" | jq .title)
 pr_body=$(echo "$pr_json" | jq .body)
 
-if [ ! "$pr_title" == '"Docs sync (vtex/action-internal-docs)"' ]; then
+expected_title='"Docs sync (vtex/action-internal-docs)"'
+
+if [[ "$expected_title" != "$pr_title" ]]; then
   echo "Failed to match expected PR title"
   exit 1
 fi
@@ -21,7 +23,7 @@ https://github.com/vtex/action-internal-docs/commit/%s
 
 [GitHub action]: http://github.com/vtex/action-internal-docs"' "$commit_sha")
 
-if [ ! "$(echo -e $pr_body)" == "$expected_body" ]; then
+if ./tests/assert-equals.js "$expected_body" "$pr_body"; then
   echo "Failed to match expected PR body"
   exit 1
 fi

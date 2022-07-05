@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 pull_number=$1
 
@@ -26,7 +26,7 @@ if [ ! -z "$CI" ]; then
   gh pr close $pull_number --delete-branch
 fi
 
-if [ "$expected_diff" = "$pr_diff" ]; then
+if ./tests/assert-equals.js "$expected_diff" "$pr_diff"; then
   echo "Pull-request diff for PR #$pull_number does not match the expected output"
 
   exit 1

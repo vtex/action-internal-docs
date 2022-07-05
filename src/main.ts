@@ -115,33 +115,50 @@ async function run(): Promise<void> {
       )
     ).sort(sortByPath)
 
-    const updatedFiles = (
-      await Promise.all(
-        files
-          .map((file) => ({
-            path: `docs/${product}/${file.name.replace('docs/', '')}`,
-            content: file.content,
-          }))
-          .map(async ({ path: filePath, content }) => {
-            let blob
+    let updatedFiles = await Promise.all(
+      files
+        .map((file) => ({
+          path: `docs/${product}/${file.name.replace('docs/', '')}`,
+          content: file.content,
+        }))
+        .map(async ({ path: filePath, content }) => {
+          let blob
 
-            if (filePath.endsWith('png') || filePath.endsWith('jpg')) {
-              blob = await kit.createBlobForFile({ content }, 'base64')
-            } else {
-              blob = await kit.createBlobForFile({ content })
-            }
+          if (filePath.endsWith('png') || filePath.endsWith('jpg')) {
+            blob = await kit.createBlobForFile({ content }, 'base64')
+          } else {
+            blob = await kit.createBlobForFile({ content })
+          }
 
-            return { path: filePath, file: { ...blob, content } }
-          })
+          return { path: filePath, sha: blob.sha as string | null }
+        })
+    )
+
+    const deletedFiles = existingFiles.filter(
+      (file) =>
+        updatedFiles.findIndex(
+          (updatedFile) => file.path === updatedFile.path
+        ) === -1
+    )
+
+    // Check for deleted files
+    if (deletedFiles.length > 0) {
+      updatedFiles.push(
+        ...deletedFiles.map((file) => ({
+          path: file.path,
+          sha: null,
+        }))
       )
-    ).sort(sortByPath)
+    }
+
+    updatedFiles = updatedFiles.sort(sortByPath)
 
     // Check if diff is equal
     if (existingFiles.length === updatedFiles.length) {
       const areEqual = existingFiles.every(
         (file, index) =>
           file.path === updatedFiles[index].path &&
-          file.sha === updatedFiles[index].file.sha
+          file.sha === updatedFiles[index].sha
       )
 
       if (areEqual) {

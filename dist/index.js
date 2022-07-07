@@ -128,7 +128,9 @@ function run() {
             }))
                 .map(({ path: filePath, content }) => __awaiter(this, void 0, void 0, function* () {
                 let blob;
-                if (filePath.endsWith('png') || filePath.endsWith('jpg')) {
+                if (filePath.endsWith('png') ||
+                    filePath.endsWith('jpg') ||
+                    filePath.endsWith('gif')) {
                     blob = yield kit.createBlobForFile({ content }, 'base64');
                 }
                 else {

@@ -124,7 +124,7 @@ async function run(): Promise<void> {
         .map(async ({ path: filePath, content }) => {
           let blob
 
-          if (filePath.endsWith('png') || filePath.endsWith('jpg')) {
+          if (filePath.endsWith('png') || filePath.endsWith('jpg') || filePath.endsWith('gif')) {
             blob = await kit.createBlobForFile({ content }, 'base64')
           } else {
             blob = await kit.createBlobForFile({ content })

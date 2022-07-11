@@ -36,7 +36,7 @@
     "short-uuid": "^4.2.0"
   },
   "devDependencies": {
-    "@octokit/rest": "^18.3.2",
+    "@octokit/rest": "^19.0.3",
     "@octokit/types": "^6.12.0",
     "@types/jest": "^26.0.20",
     "@types/node": "^18.0.0",

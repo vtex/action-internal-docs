@@ -1,6 +1,6 @@
-# VTEX Internal Docs Action
+# VTEX Tech Docs Action
 
-VTEX Internal Docs is an internal documentation solution that enables teams to 
+VTEX Tech Docs is an internal documentation solution that enables teams to 
 collaborate seamlessly by having internal documentation distributed across 
 multiple repos and rendered in a beautiful documentation portal available for 
 all VTEX employees that have a github user in the `vtex` organization.
